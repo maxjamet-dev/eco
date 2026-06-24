@@ -16,6 +16,8 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
   const [tituloEdit, setTituloEdit] = useState('')
   const [descEdit, setDescEdit] = useState('')
   const [copied, setCopied] = useState('')
+  const [editingSpeaker, setEditingSpeaker] = useState<number | null>(null)
+  const [spkName, setSpkName] = useState('')
   const audioRef = useRef<HTMLAudioElement>(null)
   const [currentTrack, setCurrentTrack] = useState<'mic' | 'system'>('system')
 
@@ -90,10 +92,16 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
     void audio.play()
   }
 
-  async function rename(sp: Speaker): Promise<void> {
-    const nombre = window.prompt(`Nombre para ${sp.etiqueta}`, sp.nombre ?? '')
-    if (nombre && nombre.trim()) {
-      await api.renameSpeaker(recordingId, sp.id, nombre.trim())
+  function startRename(sp: Speaker): void {
+    setEditingSpeaker(sp.id)
+    setSpkName(sp.nombre ?? '')
+  }
+
+  async function confirmRename(sp: Speaker): Promise<void> {
+    const nombre = spkName.trim()
+    setEditingSpeaker(null)
+    if (nombre && nombre !== (sp.nombre ?? '')) {
+      await api.renameSpeaker(recordingId, sp.id, nombre)
       void load()
     }
   }
@@ -207,8 +215,23 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
               <ul className="speaker-list">
                 {speakers.map((sp) => (
                   <li key={sp.id} className="speaker-item">
-                    <span>{sp.nombre ?? (sp.etiqueta === 'MIC' ? 'Yo' : sp.etiqueta)}</span>
-                    <button className="btn btn-xs" onClick={() => rename(sp)}>
+                    {editingSpeaker === sp.id ? (
+                      <input
+                        className="search-input"
+                        autoFocus
+                        value={spkName}
+                        placeholder={sp.etiqueta === 'MIC' ? 'Yo' : sp.etiqueta}
+                        onChange={(e) => setSpkName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void confirmRename(sp)
+                          if (e.key === 'Escape') setEditingSpeaker(null)
+                        }}
+                        onBlur={() => void confirmRename(sp)}
+                      />
+                    ) : (
+                      <span>{sp.nombre ?? (sp.etiqueta === 'MIC' ? 'Yo' : sp.etiqueta)}</span>
+                    )}
+                    <button className="btn btn-xs" onClick={() => startRename(sp)}>
                       Renombrar
                     </button>
                   </li>

@@ -36,6 +36,8 @@ export function HomeView(): JSX.Element {
     Array<{ recordingId: string; titulo: string; segment: TranscriptSegment }>
   >([])
   const dropRef = useRef<HTMLDivElement>(null)
+  const [creandoProyecto, setCreandoProyecto] = useState(false)
+  const [nuevoNombre, setNuevoNombre] = useState('')
 
   async function reloadProjects(): Promise<void> {
     setProjects(await api.listProjects())
@@ -112,10 +114,12 @@ export function HomeView(): JSX.Element {
     if (file) void importFile(file)
   }
 
-  async function nuevoProyecto(): Promise<void> {
-    const nombre = window.prompt('Nombre del nuevo proyecto')
-    if (nombre && nombre.trim()) {
-      const p = await api.createProject(nombre.trim())
+  async function confirmarNuevoProyecto(): Promise<void> {
+    const nombre = nuevoNombre.trim()
+    setCreandoProyecto(false)
+    setNuevoNombre('')
+    if (nombre) {
+      const p = await api.createProject(nombre)
       await reloadProjects()
       setProjectFilter(p.id)
     }
@@ -190,9 +194,27 @@ export function HomeView(): JSX.Element {
             {p.nombre} <span className="chip-count">{p.numReuniones}</span>
           </button>
         ))}
-        <button className="chip-btn chip-add" onClick={nuevoProyecto}>
-          + Proyecto
-        </button>
+        {creandoProyecto ? (
+          <input
+            className="search-input search-sm"
+            autoFocus
+            placeholder="Nombre del proyecto…"
+            value={nuevoNombre}
+            onChange={(e) => setNuevoNombre(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void confirmarNuevoProyecto()
+              if (e.key === 'Escape') {
+                setCreandoProyecto(false)
+                setNuevoNombre('')
+              }
+            }}
+            onBlur={() => void confirmarNuevoProyecto()}
+          />
+        ) : (
+          <button className="chip-btn chip-add" onClick={() => setCreandoProyecto(true)}>
+            + Proyecto
+          </button>
+        )}
       </div>
 
       {toast && <div className="saved-toast">{toast}</div>}
