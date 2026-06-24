@@ -1,6 +1,13 @@
 import type { ChatMessage, OllamaTransport } from './ollamaProvider'
+import { withRetry } from '../../lib/retry'
 
 const DEFAULT_BASE_URL = 'http://127.0.0.1:11434'
+
+/** Errores transitorios de conexión (servidor iniciando, modelo cargando). */
+function isTransient(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error)
+  return /ECONNREFUSED|fetch failed|network|socket|timeout|503|502/i.test(msg)
+}
 
 interface OllamaChatResponse {
   message?: { content?: string }
@@ -20,24 +27,29 @@ export class OllamaHttpTransport implements OllamaTransport {
     format?: 'json'
     signal?: AbortSignal
   }): Promise<string> {
-    const res = await fetch(`${this.baseUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: opts.signal,
-      body: JSON.stringify({
-        model: opts.model,
-        messages: opts.messages,
-        stream: false,
-        ...(opts.format ? { format: opts.format } : {}),
-        options: { temperature: 0.2 }
-      })
-    })
-    if (!res.ok) {
-      throw new Error(`Ollama respondió ${res.status}: ${await res.text()}`)
-    }
-    const data = (await res.json()) as OllamaChatResponse
-    if (data.error) throw new Error(`Ollama error: ${data.error}`)
-    return data.message?.content ?? ''
+    return withRetry(
+      async () => {
+        const res = await fetch(`${this.baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: opts.signal,
+          body: JSON.stringify({
+            model: opts.model,
+            messages: opts.messages,
+            stream: false,
+            ...(opts.format ? { format: opts.format } : {}),
+            options: { temperature: 0.2 }
+          })
+        })
+        if (!res.ok) {
+          throw new Error(`Ollama respondió ${res.status}: ${await res.text()}`)
+        }
+        const data = (await res.json()) as OllamaChatResponse
+        if (data.error) throw new Error(`Ollama error: ${data.error}`)
+        return data.message?.content ?? ''
+      },
+      { retries: 3, baseDelayMs: 1000, maxDelayMs: 8000, shouldRetry: isTransient }
+    )
   }
 
   /** Verifica que el servidor Ollama esté accesible y el modelo disponible. */
