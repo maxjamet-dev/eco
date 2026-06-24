@@ -3,6 +3,25 @@
 > Cosas que **idealmente** decides tú, pero que NO bloquearon el avance.
 > Para cada una elegí un valor por defecto razonable y seguí adelante; marca lo que quieras cambiar.
 
+## ⚠️ LO PRIMERO al despertar: ejecutar `scripts/setup-windows.ps1` como administrador
+
+Anoche no pude instalar **Visual Studio Build Tools (C++)** porque requiere
+elevación (UAC) y tú estabas durmiendo. Sin el linker MSVC quedan bloqueados
+solo dos pasos de compilación nativa (todo el resto está hecho y testeado):
+
+1. **Compilar el binario de captura Rust** (`native/`). El código está completo
+   y las dependencias resuelven; falta `cargo build` con MSVC. Tras compilar,
+   es posible que 1-2 nombres de la API de la crate `wasapi` necesiten un ajuste
+   menor (lo verás en los errores de `cargo build`; están aislados en
+   `native/src/capture.rs` y `main.rs`).
+2. **Recompilar `better-sqlite3`** para el ABI de Electron (la app de producción
+   lo necesita; los tests ya corren con `node:sqlite` sin esto).
+
+👉 Acción: abre PowerShell **como administrador** y corre:
+```powershell
+cd "C:\Users\Jamet\Documents\DEV\Meet Record"; .\scripts\setup-windows.ps1
+```
+
 ## Pendientes que necesitan una acción tuya (credenciales / descargas)
 
 1. **Token de Hugging Face para diarización (pyannote).**

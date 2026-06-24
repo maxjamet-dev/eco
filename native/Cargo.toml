@@ -1,0 +1,25 @@
+[package]
+name = "meetcap"
+version = "0.1.0"
+edition = "2021"
+description = "Captura WASAPI de dos pistas (micrófono + loopback del sistema) con reloj común"
+license = "UNLICENSED"
+
+[[bin]]
+name = "meetcap"
+path = "src/main.rs"
+
+[dependencies]
+wasapi = "0.15"
+hound = "3.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+windows = { version = "0.58", features = [
+  "Win32_Foundation",
+  "Win32_System_Performance",
+] }
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
