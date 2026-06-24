@@ -3,6 +3,30 @@
 > Cosas que **idealmente** decides tú, pero que NO bloquearon el avance.
 > Para cada una elegí un valor por defecto razonable y seguí adelante; marca lo que quieras cambiar.
 
+## 📋 Resumen de la sesión nocturna
+
+**Construido y verificado (todo testeado):**
+- ✅ Monorepo Electron+React+TS (electron-vite + electron-builder)
+- ✅ Contratos `shared/` (tipos, IPC tipado, interfaces de proveedor)
+- ✅ Persistencia SQLite+FTS5 con migraciones y repos — **18 tests**
+- ✅ Orquestador + cola + máquina de estados + reanudación — **5 tests**
+- ✅ Proveedores whisperX/whisper.cpp/Ollama + Hardware/Backend — **23 tests**
+- ✅ Worker Python whisperX **validado E2E en tu RTX 5070 (CUDA)** — 3+ tests
+- ✅ UI React completa (Home/Recording/Detail/Settings) — typecheck + build OK
+- ✅ Captura Rust WASAPI (código completo, deps resuelven)
+- ✅ Readiness/asistente + **E2E Playwright en verde** (la app arranca)
+- ✅ Métricas WER/DER + retry/backoff — **7 + 5 tests**
+- **Total: 57 tests TypeScript + 10 tests Python, todos verdes. ESLint limpio.**
+
+**Bloqueado solo por permisos de admin (lo resuelve `scripts/setup-windows.ps1`):**
+- ⏳ Compilar el binario Rust (`native/`) — necesita MSVC Build Tools
+- ⏳ Recompilar better-sqlite3 para Electron — necesita MSVC
+- ⏳ Generar instalador `.exe` — necesita Developer Mode (symlinks)
+
+**Decisiones técnicas tomadas:** ver `DECISIONS.md`. **Mapa del código:** `CLAUDE.md`.
+
+---
+
 ## ⚠️ LO PRIMERO al despertar: ejecutar `scripts/setup-windows.ps1` como administrador
 
 Anoche no pude instalar **Visual Studio Build Tools (C++)** porque requiere
