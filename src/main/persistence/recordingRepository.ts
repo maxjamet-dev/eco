@@ -5,6 +5,7 @@ import type {
   Recording,
   RecordingMode,
   RecordingStatus,
+  RecordingTipo,
   Speaker,
   SpeakerOrigin
 } from '@shared/types'
@@ -12,6 +13,7 @@ import type {
 interface RecordingRow {
   id: string
   titulo: string
+  descripcion: string | null
   fecha_inicio: string
   duracion_ms: number
   ruta_audio_mic: string | null
@@ -20,6 +22,8 @@ interface RecordingRow {
   modo: string
   estado: string
   backend_usado: string | null
+  project_id: string | null
+  tipo: string
 }
 
 interface SpeakerRow {
@@ -34,6 +38,7 @@ function toRecording(r: RecordingRow): Recording {
   return {
     id: r.id,
     titulo: r.titulo,
+    descripcion: r.descripcion,
     fechaInicio: r.fecha_inicio,
     duracionMs: r.duracion_ms,
     rutaAudioMic: r.ruta_audio_mic,
@@ -41,7 +46,9 @@ function toRecording(r: RecordingRow): Recording {
     offsetSysMs: r.offset_sys_ms,
     modo: r.modo as RecordingMode,
     estado: r.estado as RecordingStatus,
-    backendUsado: (r.backend_usado as Device | null) ?? null
+    backendUsado: (r.backend_usado as Device | null) ?? null,
+    projectId: r.project_id,
+    tipo: (r.tipo as RecordingTipo) ?? 'grabada'
   }
 }
 
@@ -60,17 +67,30 @@ export class RecordingRepository {
 
   create(input: {
     titulo?: string
+    descripcion?: string | null
     modo: RecordingMode
     fechaInicio: string
     id?: string
+    tipo?: RecordingTipo
+    projectId?: string | null
+    estado?: RecordingStatus
   }): Recording {
     const id = input.id ?? randomUUID()
     this.db
       .prepare(
-        `INSERT INTO recordings (id, titulo, fecha_inicio, modo, estado)
-         VALUES (?, ?, ?, ?, 'recording')`
+        `INSERT INTO recordings (id, titulo, descripcion, fecha_inicio, modo, estado, tipo, project_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(id, input.titulo ?? 'Reunión sin título', input.fechaInicio, input.modo)
+      .run(
+        id,
+        input.titulo ?? 'Reunión sin título',
+        input.descripcion ?? null,
+        input.fechaInicio,
+        input.modo,
+        input.estado ?? 'recording',
+        input.tipo ?? 'grabada',
+        input.projectId ?? null
+      )
     return this.get(id)!
   }
 
@@ -81,20 +101,22 @@ export class RecordingRepository {
     return row ? toRecording(row) : null
   }
 
-  list(filtro?: string): Recording[] {
+  list(filtro?: string, projectId?: string | null): Recording[] {
+    const where: string[] = []
+    const params: unknown[] = []
     if (filtro && filtro.trim()) {
-      const like = `%${filtro.trim()}%`
-      return this.db
-        .prepare(
-          `SELECT * FROM recordings WHERE titulo LIKE ? ORDER BY fecha_inicio DESC`
-        )
-        .all<RecordingRow>(like)
-        .map(toRecording)
+      where.push('titulo LIKE ?')
+      params.push(`%${filtro.trim()}%`)
     }
-    return this.db
-      .prepare('SELECT * FROM recordings ORDER BY fecha_inicio DESC')
-      .all<RecordingRow>()
-      .map(toRecording)
+    if (projectId !== undefined && projectId !== null) {
+      where.push('project_id = ?')
+      params.push(projectId)
+    }
+    const sql =
+      'SELECT * FROM recordings' +
+      (where.length ? ` WHERE ${where.join(' AND ')}` : '') +
+      ' ORDER BY fecha_inicio DESC'
+    return this.db.prepare(sql).all<RecordingRow>(...params).map(toRecording)
   }
 
   setStatus(id: string, estado: RecordingStatus): void {
@@ -119,6 +141,24 @@ export class RecordingRepository {
 
   setTitle(id: string, titulo: string): void {
     this.db.prepare('UPDATE recordings SET titulo = ? WHERE id = ?').run(titulo, id)
+  }
+
+  setDescription(id: string, descripcion: string | null): void {
+    this.db.prepare('UPDATE recordings SET descripcion = ? WHERE id = ?').run(descripcion, id)
+  }
+
+  setProject(id: string, projectId: string | null): void {
+    this.db.prepare('UPDATE recordings SET project_id = ? WHERE id = ?').run(projectId, id)
+  }
+
+  /** Actualiza varios campos editables a la vez (título, descripción, proyecto). */
+  update(
+    id: string,
+    patch: { titulo?: string; descripcion?: string | null; projectId?: string | null }
+  ): void {
+    if (patch.titulo !== undefined) this.setTitle(id, patch.titulo)
+    if (patch.descripcion !== undefined) this.setDescription(id, patch.descripcion)
+    if (patch.projectId !== undefined) this.setProject(id, patch.projectId)
   }
 
   delete(id: string): void {

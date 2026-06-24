@@ -32,10 +32,22 @@ export type JobStage = 'transcribe' | 'diarize' | 'merge' | 'summarize'
 /** Estado de un trabajo de la cola. */
 export type JobStatus = 'pending' | 'running' | 'done' | 'failed'
 
+/** Origen de la grabación: capturada por la app o importada (audio externo). */
+export type RecordingTipo = 'grabada' | 'importada'
+
+/** Un proyecto que agrupa reuniones. */
+export interface Project {
+  id: string
+  nombre: string
+  descripcion: string | null
+  creadoEn: string
+}
+
 /** Una grabación tal como vive en la base de datos. */
 export interface Recording {
   id: string
   titulo: string
+  descripcion: string | null
   fechaInicio: string // ISO 8601
   duracionMs: number
   rutaAudioMic: string | null
@@ -44,6 +56,8 @@ export interface Recording {
   modo: RecordingMode
   estado: RecordingStatus
   backendUsado: Device | null
+  projectId: string | null
+  tipo: RecordingTipo
 }
 
 /** Un hablante identificado dentro de una grabación. */
@@ -103,6 +117,7 @@ export interface RecordingDetail {
   speakers: Speaker[]
   segments: TranscriptSegment[]
   summary: MeetingSummary | null
+  project: Project | null
 }
 
 /** Información de un dispositivo de audio del sistema. */

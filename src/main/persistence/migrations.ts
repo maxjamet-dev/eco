@@ -106,6 +106,25 @@ const MIGRATIONS: Migration[] = [
         INSERT INTO transcript_fts(rowid, texto) VALUES (new.id, new.texto);
       END;
     `
+  },
+  {
+    version: 2,
+    name: 'proyectos_descripcion_import',
+    up: `
+      CREATE TABLE projects (
+        id          TEXT PRIMARY KEY,
+        nombre      TEXT NOT NULL,
+        descripcion TEXT,
+        creado_en   TEXT NOT NULL
+      );
+
+      -- Contexto editable y agrupación por proyecto (origen: grabada|importada).
+      ALTER TABLE recordings ADD COLUMN descripcion TEXT;
+      ALTER TABLE recordings ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
+      ALTER TABLE recordings ADD COLUMN tipo TEXT NOT NULL DEFAULT 'grabada';
+
+      CREATE INDEX idx_recordings_project ON recordings(project_id);
+    `
   }
 ]
 

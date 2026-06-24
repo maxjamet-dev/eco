@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain, shell } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type {
   AppSettings,
   AudioLevels,
@@ -74,9 +74,12 @@ export function registerIpcHandlers(): void {
     return { ok: true }
   })
 
-  ipcMain.handle('recordings:list', async (_e, payload: { filtro?: string }) => {
-    return repos.recordings.list(payload?.filtro)
-  })
+  ipcMain.handle(
+    'recordings:list',
+    async (_e, payload: { filtro?: string; projectId?: string | null }) => {
+      return repos.recordings.list(payload?.filtro, payload?.projectId)
+    }
+  )
 
   ipcMain.handle('recording:get', async (_e, payload: { id: string }): Promise<RecordingDetail | null> => {
     const recording = repos.recordings.get(payload.id)
@@ -85,8 +88,72 @@ export function registerIpcHandlers(): void {
       recording,
       speakers: repos.recordings.listSpeakers(payload.id),
       segments: repos.transcripts.listByRecording(payload.id),
-      summary: repos.summaries.get(payload.id)
+      summary: repos.summaries.get(payload.id),
+      project: recording.projectId ? repos.projects.get(recording.projectId) : null
     }
+  })
+
+  ipcMain.handle(
+    'recording:update',
+    async (
+      _e,
+      payload: { id: string; titulo?: string; descripcion?: string | null; projectId?: string | null }
+    ) => {
+      const { id, ...patch } = payload
+      repos.recordings.update(id, patch)
+      return { ok: true }
+    }
+  )
+
+  ipcMain.handle('recording:importFile', async (_e, payload) => {
+    const { importAudio } = await import('../import/audioImport')
+    return importAudio(payload)
+  })
+
+  ipcMain.handle('recording:importBytes', async (_e, payload) => {
+    const { importAudio } = await import('../import/audioImport')
+    return importAudio(payload)
+  })
+
+  ipcMain.handle('dialog:pickAudio', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Importar audio',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Audio', extensions: ['opus', 'ogg', 'm4a', 'mp3', 'wav', 'aac', 'flac', 'webm', 'mp4'] }
+      ]
+    })
+    return { filePath: result.canceled || !result.filePaths[0] ? null : result.filePaths[0] }
+  })
+
+  // ---- Proyectos ----
+  ipcMain.handle('projects:list', async () => {
+    return repos.projects.list().map((p) => ({
+      ...p,
+      numReuniones: repos.projects.countRecordings(p.id)
+    }))
+  })
+
+  ipcMain.handle('projects:create', async (_e, payload: { nombre: string; descripcion?: string | null }) => {
+    return repos.projects.create({
+      nombre: payload.nombre,
+      descripcion: payload.descripcion ?? null,
+      creadoEn: new Date().toISOString()
+    })
+  })
+
+  ipcMain.handle(
+    'projects:update',
+    async (_e, payload: { id: string; nombre?: string; descripcion?: string | null }) => {
+      const { id, ...patch } = payload
+      repos.projects.update(id, patch)
+      return { ok: true }
+    }
+  )
+
+  ipcMain.handle('projects:delete', async (_e, payload: { id: string }) => {
+    repos.projects.delete(payload.id)
+    return { ok: true }
   })
 
   ipcMain.handle('recording:retry', async (_e, payload: { id: string }) => {

@@ -13,6 +13,7 @@ import type {
   HardwareInfo,
   ProcessingProgress,
   AudioLevels,
+  Project,
   Recording,
   RecordingDetail,
   RecordingMode,
@@ -35,8 +36,46 @@ export interface IpcRequestMap {
     response: { ok: boolean }
   }
   'recordings:list': {
-    request: { filtro?: string }
+    request: { filtro?: string; projectId?: string | null }
     response: Recording[]
+  }
+  'recording:update': {
+    request: { id: string; titulo?: string; descripcion?: string | null; projectId?: string | null }
+    response: { ok: boolean }
+  }
+  'recording:importFile': {
+    request: { filePath: string; projectId?: string | null; titulo?: string; descripcion?: string | null }
+    response: { id: string }
+  }
+  'recording:importBytes': {
+    request: {
+      fileName: string
+      dataBase64: string
+      projectId?: string | null
+      titulo?: string
+      descripcion?: string | null
+    }
+    response: { id: string }
+  }
+  'dialog:pickAudio': {
+    request: Record<string, never>
+    response: { filePath: string | null }
+  }
+  'projects:list': {
+    request: Record<string, never>
+    response: Array<Project & { numReuniones: number }>
+  }
+  'projects:create': {
+    request: { nombre: string; descripcion?: string | null }
+    response: Project
+  }
+  'projects:update': {
+    request: { id: string; nombre?: string; descripcion?: string | null }
+    response: { ok: boolean }
+  }
+  'projects:delete': {
+    request: { id: string }
+    response: { ok: boolean }
   }
   'recording:get': {
     request: { id: string }
@@ -103,6 +142,14 @@ export const IPC_REQUEST_CHANNELS: IpcRequestChannel[] = [
   'recording:stop',
   'recording:delete',
   'recordings:list',
+  'recording:update',
+  'recording:importFile',
+  'recording:importBytes',
+  'dialog:pickAudio',
+  'projects:list',
+  'projects:create',
+  'projects:update',
+  'projects:delete',
   'recording:get',
   'recording:retry',
   'transcript:search',

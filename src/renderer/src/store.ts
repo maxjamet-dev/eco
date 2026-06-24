@@ -13,8 +13,10 @@ interface AppState {
   recordings: Recording[]
   settings: AppSettings | null
   progressByRecording: Record<string, ProcessingProgress>
+  projectFilter: string | null
   // acciones
   navigate: (view: View) => void
+  setProjectFilter: (projectId: string | null) => void
   refreshRecordings: (filtro?: string) => Promise<void>
   loadSettings: () => Promise<void>
   applyProgress: (p: ProcessingProgress) => void
@@ -25,11 +27,17 @@ export const useStore = create<AppState>((set, get) => ({
   recordings: [],
   settings: null,
   progressByRecording: {},
+  projectFilter: null,
 
   navigate: (view) => set({ view }),
 
+  setProjectFilter: (projectId) => {
+    set({ projectFilter: projectId })
+    void get().refreshRecordings()
+  },
+
   refreshRecordings: async (filtro) => {
-    const recordings = await api.listRecordings(filtro)
+    const recordings = await api.listRecordings(filtro, get().projectFilter)
     set({ recordings })
   },
 

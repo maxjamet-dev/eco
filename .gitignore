@@ -22,6 +22,10 @@ python/__pycache__/
 **/__pycache__/
 *.pyc
 
+# Binarios descargados/compilados (no versionar)
+resources/ffmpeg/
+resources/capture/
+
 # App data / models / logs (never commit these)
 models/
 *.db

@@ -4,6 +4,7 @@ import { TranscriptRepository } from './transcriptRepository'
 import { SummaryRepository } from './summaryRepository'
 import { JobRepository } from './jobRepository'
 import { SettingsRepository } from './settingsRepository'
+import { ProjectRepository } from './projectRepository'
 
 export interface Repositories {
   recordings: RecordingRepository
@@ -11,6 +12,7 @@ export interface Repositories {
   summaries: SummaryRepository
   jobs: JobRepository
   settings: SettingsRepository
+  projects: ProjectRepository
 }
 
 /**
@@ -25,7 +27,8 @@ export function createRepositories(db: SqlDb): Repositories {
     transcripts: new TranscriptRepository(db),
     summaries: new SummaryRepository(db),
     jobs: new JobRepository(db),
-    settings: new SettingsRepository(db)
+    settings: new SettingsRepository(db),
+    projects: new ProjectRepository(db)
   }
 }
 
@@ -34,6 +37,7 @@ export {
   TranscriptRepository,
   SummaryRepository,
   JobRepository,
-  SettingsRepository
+  SettingsRepository,
+  ProjectRepository
 }
 export { DEFAULT_SETTINGS } from './settingsRepository'

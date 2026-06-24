@@ -16,9 +16,28 @@ export const api = {
     invoke('recording:start', { titulo, modo }),
   stopRecording: (id: string) => invoke('recording:stop', { id }),
   deleteRecording: (id: string) => invoke('recording:delete', { id }),
-  listRecordings: (filtro?: string) => invoke('recordings:list', { filtro }),
+  listRecordings: (filtro?: string, projectId?: string | null) =>
+    invoke('recordings:list', { filtro, projectId }),
   getRecording: (id: string) => invoke('recording:get', { id }),
   retryRecording: (id: string) => invoke('recording:retry', { id }),
+  updateRecording: (
+    id: string,
+    patch: { titulo?: string; descripcion?: string | null; projectId?: string | null }
+  ) => invoke('recording:update', { id, ...patch }),
+  pickAudio: () => invoke('dialog:pickAudio', {}),
+  importAudioFile: (filePath: string, projectId?: string | null) =>
+    invoke('recording:importFile', { filePath, projectId }),
+  importAudioBytes: (
+    fileName: string,
+    dataBase64: string,
+    projectId?: string | null
+  ) => invoke('recording:importBytes', { fileName, dataBase64, projectId }),
+  listProjects: () => invoke('projects:list', {}),
+  createProject: (nombre: string, descripcion?: string | null) =>
+    invoke('projects:create', { nombre, descripcion }),
+  updateProject: (id: string, patch: { nombre?: string; descripcion?: string | null }) =>
+    invoke('projects:update', { id, ...patch }),
+  deleteProject: (id: string) => invoke('projects:delete', { id }),
   searchTranscript: (id: string, query: string) => invoke('transcript:search', { id, query }),
   searchGlobal: (query: string) => invoke('transcript:searchGlobal', { query }),
   renameSpeaker: (recordingId: string, speakerId: number, nombre: string) =>
