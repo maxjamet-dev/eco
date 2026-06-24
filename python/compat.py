@@ -51,3 +51,37 @@ def apply_torch_load_compat():
         return
     _patched_load._meetcap_patched = True  # type: ignore[attr-defined]
     torch.load = _patched_load  # type: ignore[assignment]
+
+
+def apply_speechbrain_compat():
+    """
+    Arregla el fallo de speechbrain con sus "integraciones" perezosas
+    (k2_fsa, nlp, …): dependencias opcionales que la diarización de pyannote NO
+    usa, pero cuya importación perezosa lanza ImportError.
+
+    En Python 3.12 `hasattr(modulo_lazy, '__file__')` propaga ese ImportError en
+    vez de devolver False (porque hasattr solo silencia AttributeError), lo que
+    rompe el escaneo de módulos que hace pyannote/torch al cargar el pipeline.
+
+    Parcheamos LazyModule.__getattr__ para que un fallo de importación perezosa
+    se traduzca a AttributeError → hasattr devuelve False y el escaneo continúa.
+    """
+    try:
+        import speechbrain.utils.importutils as iu  # type: ignore
+    except Exception:  # noqa: BLE001
+        return
+
+    lazy_cls = getattr(iu, "LazyModule", None)
+    if lazy_cls is None or getattr(lazy_cls, "_meetcap_patched", False):
+        return
+
+    original_getattr = lazy_cls.__getattr__
+
+    def safe_getattr(self, attr):
+        try:
+            return original_getattr(self, attr)
+        except ImportError as exc:
+            raise AttributeError(attr) from exc
+
+    lazy_cls.__getattr__ = safe_getattr
+    lazy_cls._meetcap_patched = True

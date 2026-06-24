@@ -29,10 +29,11 @@ _whisperx = None
 def _wx():
     global _whisperx
     if _whisperx is None:
-        # Aplica el shim de torch.load (PyTorch 2.6+) ANTES de cargar whisperx.
-        from compat import apply_torch_load_compat
+        # Shims de compatibilidad ANTES de cargar whisperx (PyTorch 2.6 + speechbrain).
+        from compat import apply_speechbrain_compat, apply_torch_load_compat
 
         apply_torch_load_compat()
+        apply_speechbrain_compat()
         import whisperx  # noqa: WPS433
 
         _whisperx = whisperx
@@ -72,15 +73,35 @@ class ModelCache:
         return self.diarize[key]
 
 
+# Modelos de diarización en orden de preferencia (SDD ADR-3):
+# community-1 (mejor DER y SIN speechbrain) → 3.1 como fallback.
+DIARIZATION_MODELS = [
+    "pyannote/speaker-diarization-community-1",
+    "pyannote/speaker-diarization-3.1",
+]
+
+
 def _load_diarization_pipeline(hf_token, device):
-    """Importa DiarizationPipeline de forma robusta entre versiones de whisperx."""
+    """Carga DiarizationPipeline probando community-1 y luego 3.1 (SDD ADR-3)."""
     wx = _wx()
-    # whisperx >= 3.2 movió la clase a whisperx.diarize
     try:
         from whisperx.diarize import DiarizationPipeline  # type: ignore
     except Exception:  # noqa: BLE001
         DiarizationPipeline = wx.DiarizationPipeline  # type: ignore
-    return DiarizationPipeline(use_auth_token=hf_token, device=device)
+
+    last_err = None
+    for model_name in DIARIZATION_MODELS:
+        try:
+            print(f"[worker] intentando diarización con {model_name}", flush=True)
+            return DiarizationPipeline(
+                model_name=model_name, use_auth_token=hf_token, device=device
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(f"[worker] {model_name} no disponible: {exc}", flush=True)
+            last_err = exc
+    raise RuntimeError(
+        f"No se pudo cargar ningún modelo de diarización. Último error: {last_err}"
+    )
 
 
 CACHE = ModelCache()
