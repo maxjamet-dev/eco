@@ -35,3 +35,28 @@ test('la aplicación arranca y muestra el shell', async () => {
 
   await electronApp.close()
 })
+
+test('el backend responde: Ajustes muestra hardware detectado', async () => {
+  const env: Record<string, string> = {}
+  for (const [k, v] of Object.entries(process.env)) {
+    if (v !== undefined && k !== 'ELECTRON_RUN_AS_NODE') env[k] = v
+  }
+
+  const electronApp = await electron.launch({ args: ['.'], cwd: process.cwd(), env })
+  const window = await electronApp.firstWindow()
+  await window.waitForLoadState('domcontentloaded')
+
+  // Navega a Ajustes (requiere que el IPC + DB + detección estén operativos).
+  await window.getByRole('button', { name: 'Ajustes' }).click()
+
+  // La tarjeta "Estado del sistema" debe aparecer (IPC system:readiness respondió).
+  await expect(window.getByText('Estado del sistema', { exact: false })).toBeVisible({
+    timeout: 20_000
+  })
+
+  // La sección Hardware debe resolver (CUDA detectado o CPU), no quedarse en "Detectando…".
+  await expect(window.getByText(/GPU:|Sin GPU NVIDIA/)).toBeVisible({ timeout: 20_000 })
+
+  await window.screenshot({ path: 'test-results/settings.png' })
+  await electronApp.close()
+})

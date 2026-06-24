@@ -9,7 +9,8 @@ mod protocol;
 
 use std::io::{BufRead, Write};
 use std::path::Path;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use capture::{qpc_frequency, start_capture, CaptureHandle, CaptureOutcome};
@@ -20,8 +21,11 @@ const CAPTURE_VERSION: &str = "0.1.0";
 struct Session {
     mic: Option<CaptureHandle>,
     sys: Option<CaptureHandle>,
+    #[allow(dead_code)]
     out_dir: String,
     started: Instant,
+    level_stop: Arc<AtomicBool>,
+    level_thread: Option<std::thread::JoinHandle<()>>,
 }
 
 fn main() {
@@ -85,11 +89,6 @@ fn main() {
                 message: format!("Comando inválido: {e}"),
             }),
         }
-
-        // Emite niveles si hay sesión activa (no bloqueante).
-        if let Some(s) = &session {
-            emit_levels(s);
-        }
     }
 }
 
@@ -101,16 +100,44 @@ fn start_session(out_dir: &str) -> Result<Session, String> {
     let mic = start_capture(mic_path.to_string_lossy().to_string(), false);
     let sys = start_capture(sys_path.to_string_lossy().to_string(), true);
 
+    // Hilo emisor de niveles: publica medidores en vivo cada ~120 ms mientras
+    // dura la grabación (sin él, los medidores de la UI no se moverían).
+    let level_stop = Arc::new(AtomicBool::new(false));
+    let mic_level = mic.level_milli.clone();
+    let sys_level = sys.level_milli.clone();
+    let stop_flag = level_stop.clone();
+    let level_thread = std::thread::spawn(move || {
+        while !stop_flag.load(Ordering::Relaxed) {
+            let mic_l = read_level(&mic_level);
+            let sys_l = read_level(&sys_level);
+            emit(&Event::Level { mic: mic_l, sys: sys_l })
+            ;
+            std::thread::sleep(Duration::from_millis(120))
+        }
+    });
+
     Ok(Session {
         mic: Some(mic),
         sys: Some(sys),
         out_dir: out_dir.to_string(),
         started: Instant::now(),
+        level_stop,
+        level_thread: Some(level_thread),
     })
 }
 
-fn stop_session(session: Session) -> Result<CaptureMeta, String> {
+fn read_level(atomic: &Arc<AtomicU32>) -> f32 {
+    atomic.load(Ordering::Relaxed) as f32 / 1_000_000.0
+}
+
+fn stop_session(mut session: Session) -> Result<CaptureMeta, String> {
     let duration_ms = session.started.elapsed().as_millis() as i64;
+
+    // Detenemos el emisor de niveles antes de cerrar las pistas.
+    session.level_stop.store(true, Ordering::Relaxed);
+    if let Some(t) = session.level_thread.take() {
+        let _ = t.join();
+    }
 
     let mic_out = finish(session.mic)?;
     let sys_out = finish(session.sys)?;
@@ -145,19 +172,6 @@ fn finish(handle: Option<CaptureHandle>) -> Result<Option<CaptureOutcome>, Strin
     }
 }
 
-fn emit_levels(session: &Session) {
-    let mic = session
-        .mic
-        .as_ref()
-        .map(|h| h.level_milli.load(Ordering::Relaxed) as f32 / 1_000_000.0)
-        .unwrap_or(0.0);
-    let sys = session
-        .sys
-        .as_ref()
-        .map(|h| h.level_milli.load(Ordering::Relaxed) as f32 / 1_000_000.0)
-        .unwrap_or(0.0);
-    emit(&Event::Level { mic, sys });
-}
 
 fn write_meta(meta: &CaptureMeta) -> Result<(), String> {
     // meta.json junto a los WAV (respaldo si el evento Stopped se pierde).
