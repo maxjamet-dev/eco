@@ -37,6 +37,10 @@ export class OllamaHttpTransport implements OllamaTransport {
             model: opts.model,
             messages: opts.messages,
             stream: false,
+            // Desactiva el "modo pensamiento" de modelos como Qwen3: sin él, el
+            // razonamiento previo multiplica la latencia (~300s vs ~40s medidos)
+            // sin mejorar el resumen. Ollama ignora este campo en modelos sin thinking.
+            think: false,
             ...(opts.format ? { format: opts.format } : {}),
             options: { temperature: 0.2 }
           })
