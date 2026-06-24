@@ -1,0 +1,14 @@
+# Worker whisperX — entorno de IA (ASR + diarización)
+# Python 3.12 (NO 3.14: torch/ctranslate2/pyannote aún no publican wheels).
+#
+# torch/torchaudio se instalan desde el índice CUDA 12.8 (cu128),
+# requerido por la GPU Blackwell (RTX 50xx, sm_120).
+# Recrear con:
+#   uv pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu128
+
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+torch
+torchaudio
+
+whisperx

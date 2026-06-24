@@ -1,0 +1,42 @@
+appId: cl.fundacionciudaddepaz.grabadorreuniones
+productName: Grabador de Reuniones
+copyright: Copyright © 2026 Fundación Ciudad de Paz
+
+directories:
+  buildResources: build
+  output: release/${version}
+
+files:
+  - out/**/*
+  - package.json
+
+# Recursos pesados (modelos, binarios nativos, worker python) se resuelven
+# en el primer arranque, no se empaquetan (ADR-7). Solo se incluye el binario
+# de captura Rust si existe compilado.
+extraResources:
+  - from: resources/
+    to: resources/
+    filter:
+      - '**/*'
+
+asarUnpack:
+  - '**/*.node'
+  - resources/**
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-setup.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Grabador de Reuniones
+
+# Auto-update (configurar feed más adelante)
+publish: null

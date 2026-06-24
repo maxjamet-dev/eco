@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+out/
+dist/
+release/
+*.tsbuildinfo
+
+# Electron
+.electron-builder-cache/
+
+# Rust
+native/target/
+native/**/target/
+
+# Python
+python/.venv/
+python/__pycache__/
+**/__pycache__/
+*.pyc
+
+# App data / models / logs (never commit these)
+models/
+*.db
+*.db-shm
+*.db-wal
+*.wav
+logs/
+
+# Env / secrets
+.env
+.env.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Test artifacts
+coverage/
+playwright-report/
+test-results/

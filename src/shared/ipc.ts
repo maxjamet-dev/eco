@@ -1,0 +1,123 @@
+/**
+ * Contrato de IPC tipado entre renderer y main (SDD §10.1).
+ *
+ * `IpcRequestMap` define canales request/response (invoke/handle).
+ * `IpcEventMap` define canales de eventos main→renderer (send/on).
+ *
+ * Esta tipificación se usa tanto en el preload (para exponer la API)
+ * como en el renderer (para consumirla con seguridad de tipos).
+ */
+import type {
+  AppSettings,
+  AudioDevice,
+  HardwareInfo,
+  ProcessingProgress,
+  AudioLevels,
+  Recording,
+  RecordingDetail,
+  RecordingMode,
+  TranscriptSegment
+} from './types'
+
+/** Canales request→response (renderer invoca, main responde). */
+export interface IpcRequestMap {
+  'recording:start': {
+    request: { titulo?: string; modo: RecordingMode }
+    response: { id: string }
+  }
+  'recording:stop': {
+    request: { id: string }
+    response: { ok: boolean }
+  }
+  'recording:delete': {
+    request: { id: string }
+    response: { ok: boolean }
+  }
+  'recordings:list': {
+    request: { filtro?: string }
+    response: Recording[]
+  }
+  'recording:get': {
+    request: { id: string }
+    response: RecordingDetail | null
+  }
+  'recording:retry': {
+    request: { id: string }
+    response: { ok: boolean }
+  }
+  'transcript:search': {
+    request: { id: string; query: string }
+    response: TranscriptSegment[]
+  }
+  'transcript:searchGlobal': {
+    request: { query: string }
+    response: Array<{ recordingId: string; titulo: string; segment: TranscriptSegment }>
+  }
+  'speaker:rename': {
+    request: { recordingId: string; speakerId: number; nombre: string }
+    response: { ok: boolean }
+  }
+  'settings:get': {
+    request: Record<string, never>
+    response: AppSettings
+  }
+  'settings:set': {
+    request: Partial<AppSettings>
+    response: AppSettings
+  }
+  'settings:setHfToken': {
+    request: { token: string }
+    response: { ok: boolean }
+  }
+  'audio:listDevices': {
+    request: Record<string, never>
+    response: { inputs: AudioDevice[]; outputs: AudioDevice[] }
+  }
+  'hardware:detect': {
+    request: { force?: boolean }
+    response: HardwareInfo
+  }
+  'system:openDataFolder': {
+    request: Record<string, never>
+    response: { ok: boolean }
+  }
+}
+
+/** Canales de eventos main→renderer (push). */
+export interface IpcEventMap {
+  'processing:progress': ProcessingProgress
+  'audio:levels': AudioLevels
+}
+
+export type IpcRequestChannel = keyof IpcRequestMap
+export type IpcEventChannel = keyof IpcEventMap
+
+/** Lista en runtime de los canales request (para validación en preload/main). */
+export const IPC_REQUEST_CHANNELS: IpcRequestChannel[] = [
+  'recording:start',
+  'recording:stop',
+  'recording:delete',
+  'recordings:list',
+  'recording:get',
+  'recording:retry',
+  'transcript:search',
+  'transcript:searchGlobal',
+  'speaker:rename',
+  'settings:get',
+  'settings:set',
+  'settings:setHfToken',
+  'audio:listDevices',
+  'hardware:detect',
+  'system:openDataFolder'
+]
+
+export const IPC_EVENT_CHANNELS: IpcEventChannel[] = ['processing:progress', 'audio:levels']
+
+/** Forma de la API que el preload expone en `window.api`. */
+export interface RendererApi {
+  invoke<C extends IpcRequestChannel>(
+    channel: C,
+    payload: IpcRequestMap[C]['request']
+  ): Promise<IpcRequestMap[C]['response']>
+  on<C extends IpcEventChannel>(channel: C, listener: (data: IpcEventMap[C]) => void): () => void
+}
