@@ -138,7 +138,7 @@ fn run_capture(
         .set_get_eventhandle()
         .map_err(|e| format!("eventhandle: {e}"))?;
     let capture_client = audio_client
-        .get_audiocapturient()
+        .get_audiocaptureclient()
         .map_err(|e| format!("capturclient: {e}"))?;
 
     // WAV mono i16 a la tasa nativa (el worker Python resamplea a 16 kHz).

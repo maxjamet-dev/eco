@@ -26,9 +26,9 @@ struct Session {
 
 fn main() {
     // WASAPI requiere COM inicializado en este hilo.
-    if let Err(e) = wasapi::initialize_mta().ok().ok_or("initialize_mta") {
+    if wasapi::initialize_mta().is_err() {
         emit(&Event::Error {
-            message: format!("No se pudo inicializar COM/WASAPI: {e}"),
+            message: "No se pudo inicializar COM/WASAPI (MTA)".into(),
         });
     }
 
