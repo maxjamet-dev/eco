@@ -16,6 +16,7 @@ import type {
   Recording,
   RecordingDetail,
   RecordingMode,
+  SystemReadiness,
   TranscriptSegment
 } from './types'
 
@@ -77,6 +78,10 @@ export interface IpcRequestMap {
     request: { force?: boolean }
     response: HardwareInfo
   }
+  'system:readiness': {
+    request: Record<string, never>
+    response: SystemReadiness
+  }
   'system:openDataFolder': {
     request: Record<string, never>
     response: { ok: boolean }
@@ -108,6 +113,7 @@ export const IPC_REQUEST_CHANNELS: IpcRequestChannel[] = [
   'settings:setHfToken',
   'audio:listDevices',
   'hardware:detect',
+  'system:readiness',
   'system:openDataFolder'
 ]
 

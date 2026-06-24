@@ -29,6 +29,7 @@ export const api = {
   setHfToken: (token: string) => invoke('settings:setHfToken', { token }),
   listDevices: () => invoke('audio:listDevices', {}),
   detectHardware: (force = false) => invoke('hardware:detect', { force }),
+  readiness: () => invoke('system:readiness', {}),
   openDataFolder: () => invoke('system:openDataFolder', {})
 }
 

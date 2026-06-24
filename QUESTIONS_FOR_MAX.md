@@ -22,6 +22,14 @@ solo dos pasos de compilación nativa (todo el resto está hecho y testeado):
 cd "C:\Users\Jamet\Documents\DEV\Meet Record"; .\scripts\setup-windows.ps1
 ```
 
+### Empaquetado (instalador .exe) — gated por el mismo permiso
+
+`electron-builder` falla al extraer su caché `winCodeSign` (contiene symlinks de
+macOS) sin **Developer Mode** o admin. El `setup-windows.ps1` ya lo habilita.
+Tras correrlo: `npm run package` genera el instalador NSIS en `release/`.
+Lo verificado anoche: `electron-vite build` produce los bundles correctos y la
+app **arranca** (test E2E de Playwright en verde).
+
 ## Pendientes que necesitan una acción tuya (credenciales / descargas)
 
 1. **Token de Hugging Face para diarización (pyannote).**

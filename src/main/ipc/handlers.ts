@@ -137,6 +137,11 @@ export function registerIpcHandlers(): void {
     return detector.detect(payload?.force ?? false)
   })
 
+  ipcMain.handle('system:readiness', async () => {
+    const { checkReadiness } = await import('../firstRun')
+    return checkReadiness(detector)
+  })
+
   ipcMain.handle('system:openDataFolder', async () => {
     await shell.openPath(dataDir())
     return { ok: true }

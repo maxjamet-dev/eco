@@ -1,13 +1,23 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { api } from '../api'
-import type { AppSettings, HardwareInfo } from '@shared/types'
+import type { AppSettings, HardwareInfo, SystemReadiness } from '@shared/types'
+
+function Check({ ok, children }: { ok: boolean; children: React.ReactNode }): JSX.Element {
+  return (
+    <li className="check-item">
+      <span className={ok ? 'check-ok' : 'check-no'}>{ok ? '✅' : '⚠️'}</span>
+      {children}
+    </li>
+  )
+}
 
 export function SettingsView(): JSX.Element {
   const settings = useStore((s) => s.settings)
   const loadSettings = useStore((s) => s.loadSettings)
   const [local, setLocal] = useState<AppSettings | null>(settings)
   const [hardware, setHardware] = useState<HardwareInfo | null>(null)
+  const [readiness, setReadiness] = useState<SystemReadiness | null>(null)
   const [hfToken, setHfToken] = useState('')
   const [savedMsg, setSavedMsg] = useState('')
 
@@ -17,6 +27,7 @@ export function SettingsView(): JSX.Element {
 
   useEffect(() => {
     void api.detectHardware().then(setHardware)
+    void api.readiness().then(setReadiness)
   }, [])
 
   if (!local) return <div className="view">Cargando ajustes…</div>
@@ -44,6 +55,32 @@ export function SettingsView(): JSX.Element {
     <div className="view settings-view">
       <h2>Ajustes</h2>
       {savedMsg && <div className="saved-toast">{savedMsg}</div>}
+
+      <div className="card">
+        <h3 className="card-title">
+          Estado del sistema {readiness?.listoParaUsar ? '— ✅ Listo' : '— configuración pendiente'}
+        </h3>
+        {readiness ? (
+          <ul className="check-list">
+            <Check ok={readiness.gpu.tieneCuda}>
+              GPU NVIDIA / CUDA {readiness.gpu.tieneCuda ? `(${readiness.gpu.gpuNombre})` : '(se usará CPU)'}
+            </Check>
+            <Check ok={readiness.pythonReady}>Entorno Python whisperX</Check>
+            <Check ok={readiness.whisperBinReady}>Binario de captura (Rust)</Check>
+            <Check ok={readiness.ollamaReady}>Servidor Ollama accesible</Check>
+            <Check ok={readiness.modeloLlmDisponible}>
+              Modelo de resumen descargado{' '}
+              {!readiness.modeloLlmDisponible && local ? `(falta: ${local.modeloLlm})` : ''}
+            </Check>
+            <Check ok={readiness.hasHfToken}>Token de Hugging Face (diarización)</Check>
+          </ul>
+        ) : (
+          <p className="muted">Comprobando…</p>
+        )}
+        <button className="btn btn-sm" onClick={() => api.readiness().then(setReadiness)}>
+          Volver a comprobar
+        </button>
+      </div>
 
       <div className="card">
         <h3 className="card-title">Hardware</h3>

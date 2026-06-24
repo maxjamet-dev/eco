@@ -152,5 +152,18 @@ export interface AudioLevels {
   sysLevel: number // 0..1
 }
 
+/** Estado de preparación del sistema (asistente de primer arranque, SDD §14). */
+export interface SystemReadiness {
+  gpu: HardwareInfo
+  pythonReady: boolean // existe el venv + worker.py
+  whisperBinReady: boolean // binario de captura Rust compilado
+  ollamaReady: boolean // servidor Ollama accesible
+  ollamaModels: string[] // modelos descargados en Ollama
+  modeloLlmDisponible: boolean // el modelo configurado está en Ollama
+  hasHfToken: boolean
+  /** ¿Está todo lo mínimo para grabar y procesar? */
+  listoParaUsar: boolean
+}
+
 /** Resultado genérico de operaciones que pueden fallar. */
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string }

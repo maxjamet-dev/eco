@@ -28,6 +28,18 @@ npm install better-sqlite3
 npx electron-rebuild -f -w better-sqlite3
 Pop-Location
 
+Write-Host "== 3b: Habilitar Developer Mode (symlinks para electron-builder) ==" -ForegroundColor Cyan
+# electron-builder extrae winCodeSign con symlinks de macOS; sin Developer Mode
+# o admin, 7-zip no puede crear symlinks. Esto lo habilita.
+try {
+  New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" -Force | Out-Null
+  Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" `
+    -Name "AllowDevelopmentWithoutDevLicense" -Value 1 -Type DWord
+  Write-Host "Developer Mode habilitado." -ForegroundColor Green
+} catch {
+  Write-Host "No se pudo habilitar Developer Mode automáticamente: $_" -ForegroundColor Yellow
+}
+
 Write-Host "== 4/4: (Opcional) Modelo de Ollama ==" -ForegroundColor Cyan
 Write-Host "Para descargar el LLM por defecto (qwen3:8b, ~5 GB) ejecuta:" -ForegroundColor Yellow
 Write-Host "    ollama pull qwen3:8b" -ForegroundColor Yellow
