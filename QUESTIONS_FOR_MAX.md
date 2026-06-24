@@ -77,6 +77,19 @@ app **arranca** (test E2E de Playwright en verde).
 
 7. **Cifrado en reposo (SQLCipher).** Lo dejé como opción NO activada por defecto (el SDD lo marca "opcional"). ¿Activar por defecto?
 
+## Notas de la sesión de integración (24-jun tarde)
+
+- **Diarización: usando pyannote `3.1`, no `community-1`.** `community-1` es
+  incompatible con la versión de pyannote.audio instalada (3.4.0): falla con
+  `unexpected keyword 'plda'`. El worker intenta community-1 y cae a 3.1
+  automáticamente. Validado E2E con audio real (OK). Si quieres community-1
+  (mejor DER), habría que fijar una versión de pyannote compatible — lo dejo
+  anotado pero 3.1 funciona bien.
+- **Token HF en el chat:** lo pegaste para validar; **regéneralo en HF cuando
+  quieras** por higiene (en la app va cifrado con safeStorage).
+- **Primera grabación:** descargará el modelo ASR `large-v3-turbo` (~1.5 GB) una
+  sola vez; los modelos de diarización ya quedaron en caché.
+
 ## Notas técnicas que quizá quieras revisar
 
 8. **VRAM 8 GB:** el diseño asume carga secuencial de modelos (ASR → liberar → LLM). Si consigues una GPU con más VRAM, se puede paralelizar.
