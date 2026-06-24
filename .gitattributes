@@ -1,0 +1,10 @@
+# Normaliza saltos de línea: el repo usa LF; checkout nativo en cada SO.
+* text=auto eol=lf
+
+# Binarios: nunca tocar
+*.wav binary
+*.bin binary
+*.node binary
+*.exe binary
+*.png binary
+*.ico binary
