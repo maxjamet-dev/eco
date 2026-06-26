@@ -8,7 +8,9 @@
 
 --extra-index-url https://download.pytorch.org/whl/cu128
 
-torch
-torchaudio
+# torch/torchaudio fijados a 2.8.0: el 2.11 elimina torchaudio.AudioMetaData y
+# rompe pyannote/whisperX. 2.8.0+cu128 es la combinación validada (RTX 50xx).
+torch==2.8.0
+torchaudio==2.8.0
 
 whisperx

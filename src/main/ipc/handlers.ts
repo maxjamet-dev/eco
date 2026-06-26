@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type {
   AppSettings,
   AudioLevels,
@@ -13,6 +13,8 @@ import { hasSecret, setSecret, HF_TOKEN_KEY } from '../secrets'
 import { setAutoLaunch, setTrayRecording } from '../tray'
 import { getEnvStatus, prepareEnv } from '../envManager'
 import { getOllamaStatus, pullOllamaModel } from '../ollamaManager'
+import { validateHfToken } from '../hf'
+import { checkForUpdates, quitAndInstall } from '../updater'
 import { recordingDir, dataDir } from '../paths'
 import { createLogger } from '../logger'
 import { importAudio } from '../import/audioImport'
@@ -247,6 +249,13 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('ollama:status', async () => getOllamaStatus())
   ipcMain.handle('ollama:pull', async () => pullOllamaModel())
+  ipcMain.handle('hf:validate', async (_e, payload: { token: string }) =>
+    validateHfToken(payload.token)
+  )
+
+  ipcMain.handle('app:version', async () => ({ version: app.getVersion() }))
+  ipcMain.handle('update:check', async () => checkForUpdates())
+  ipcMain.handle('update:install', async () => quitAndInstall())
 
   log.info('Handlers IPC registrados')
 }

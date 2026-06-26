@@ -54,8 +54,13 @@ if ($Device -eq 'cuda') {
 else {
   $index = 'https://download.pytorch.org/whl/cpu'
 }
-Step 'Instalando IA (torch + whisperX) — puede tardar y pesar varios GB'
-& $uv pip install --python $venvPy torch torchaudio whisperx --extra-index-url $index
+# Instalamos VERSIONES VALIDADAS (lock generado del entorno de desarrollo que
+# funciona). Evita el drift de transitivas (torchaudio.AudioMetaData,
+# hf_hub_download use_auth_token, etc.). torch/torchaudio van fijados a 2.8.0
+# con el índice según el dispositivo; el resto sale del lock.
+$lock = Join-Path $PSScriptRoot 'requirements-lock.txt'
+Step 'Instalando IA (versiones validadas) — puede tardar y pesar varios GB'
+& $uv pip install --python $venvPy torch==2.8.0 torchaudio==2.8.0 -r $lock --extra-index-url $index
 if ($LASTEXITCODE -ne 0) { Fail "La instalación de dependencias falló (código $LASTEXITCODE)" }
 
 # --- 5. Verificación ---

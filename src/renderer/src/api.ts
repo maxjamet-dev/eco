@@ -51,6 +51,10 @@ export const api = {
   prepareEnv: (device: 'cuda' | 'cpu') => invoke('env:prepare', { device }),
   ollamaStatus: () => invoke('ollama:status', {}),
   pullOllamaModel: () => invoke('ollama:pull', {}),
+  validateHfToken: (token: string) => invoke('hf:validate', { token }),
+  appVersion: () => invoke('app:version', {}),
+  checkForUpdates: () => invoke('update:check', {}),
+  installUpdate: () => invoke('update:install', {}),
   getSettings: () => invoke('settings:get', {}),
   setSettings: (patch: Partial<IpcRequestMap['settings:set']['request']>) =>
     invoke('settings:set', patch),

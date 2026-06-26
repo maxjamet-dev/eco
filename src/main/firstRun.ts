@@ -5,6 +5,7 @@ import type { SystemReadiness } from '@shared/types'
 import { HardwareDetector } from './hardware/detect'
 import { OllamaHttpTransport } from './providers/ollama/ollamaTransport'
 import { getRepositories } from './persistence/db'
+import { getEnvStatus } from './envManager'
 import { hasSecret, HF_TOKEN_KEY } from './secrets'
 
 /** Resuelve rutas candidatas de un recurso (dev o empaquetado). */
@@ -24,9 +25,12 @@ function existsInAny(rel: string[], file: string): boolean {
 export async function checkReadiness(detector: HardwareDetector): Promise<SystemReadiness> {
   const gpu = await detector.detect()
 
+  // El worker (worker.py) viene con el código; el intérprete puede ser el venv
+  // preparado en %APPDATA%/eco/runtime (instalador) o el python/.venv del repo (dev).
+  const workerPresent = existsInAny(['python'], 'worker.py')
   const pythonReady =
-    existsInAny(['python', '.venv', 'Scripts'], 'python.exe') &&
-    existsInAny(['python'], 'worker.py')
+    workerPresent &&
+    (getEnvStatus().ready || existsInAny(['python', '.venv', 'Scripts'], 'python.exe'))
 
   const whisperBinReady =
     existsInAny(['native', 'target', 'release'], 'meetcap.exe') ||

@@ -34,6 +34,19 @@ export function SettingsView(): JSX.Element {
   } | null>(null)
   const [pullingModel, setPullingModel] = useState(false)
   const [ollamaLines, setOllamaLines] = useState<string[]>([])
+  const [version, setVersion] = useState('')
+  const [upd, setUpd] = useState<{
+    state: string
+    version?: string
+    percent?: number
+    message?: string
+  } | null>(null)
+  const [hfChecking, setHfChecking] = useState(false)
+  const [hfRes, setHfRes] = useState<{
+    validToken: boolean
+    user: string | null
+    accessOk: boolean
+  } | null>(null)
 
   useEffect(() => {
     setLocal(settings)
@@ -44,6 +57,7 @@ export function SettingsView(): JSX.Element {
     void api.readiness().then(setReadiness)
     void api.envStatus().then(setEnvStatus)
     void api.ollamaStatus().then(setOllamaSt)
+    void api.appVersion().then((r) => setVersion(r.version))
   }, [])
 
   useEffect(() => {
@@ -53,9 +67,11 @@ export function SettingsView(): JSX.Element {
     const offOllama = onEvent('ollama:progress', ({ line }) => {
       setOllamaLines((prev) => [...prev.slice(-200), line])
     })
+    const offUpd = onEvent('update:status', (s) => setUpd(s))
     return () => {
       offEnv()
       offOllama()
+      offUpd()
     }
   }, [])
 
@@ -71,13 +87,16 @@ export function SettingsView(): JSX.Element {
 
   async function guardarToken(): Promise<void> {
     if (!hfToken.trim()) return
-    const { ok } = await api.setHfToken(hfToken.trim())
-    if (ok) {
-      setHfToken('')
+    setHfChecking(true)
+    const res = await api.validateHfToken(hfToken.trim())
+    setHfRes(res)
+    if (res.validToken) {
+      await api.setHfToken(hfToken.trim())
       await loadSettings()
       setSavedMsg('Token guardado')
       setTimeout(() => setSavedMsg(''), 1500)
     }
+    setHfChecking(false)
   }
 
   async function prepararEntorno(): Promise<void> {
@@ -96,6 +115,32 @@ export function SettingsView(): JSX.Element {
     await api.pullOllamaModel()
     setPullingModel(false)
     void api.ollamaStatus().then(setOllamaSt)
+  }
+
+  async function buscarActualizaciones(): Promise<void> {
+    setUpd({ state: 'checking' })
+    await api.checkForUpdates()
+  }
+
+  function mensajeUpdate(u: { state: string; version?: string; percent?: number; message?: string }): string {
+    switch (u.state) {
+      case 'checking':
+        return 'Buscando actualizaciones…'
+      case 'available':
+        return `Versión ${u.version ?? ''} disponible — descargando…`
+      case 'downloading':
+        return `Descargando… ${u.percent ?? 0}%`
+      case 'downloaded':
+        return `Versión ${u.version ?? ''} lista para instalar.`
+      case 'not-available':
+        return 'Estás al día. ✅'
+      case 'error':
+        return `No se pudo comprobar: ${u.message ?? 'error'}`
+      case 'dev':
+        return 'Las actualizaciones solo funcionan en la app instalada.'
+      default:
+        return ''
+    }
   }
 
   return (
@@ -303,23 +348,81 @@ export function SettingsView(): JSX.Element {
       </div>
 
       <div className="card">
-        <h3 className="card-title">Token de Hugging Face (diarización)</h3>
+        <h3 className="card-title">
+          Token de Hugging Face (separar voces){' '}
+          {local.tieneTokenHf ? '— ✅ guardado' : '— ⚠️ pendiente'}
+        </h3>
         <p className="muted">
-          Necesario para identificar participantes (pyannote). El token se guarda
-          cifrado y nunca sale del equipo.{' '}
-          {local.tieneTokenHf ? '✅ Hay un token guardado.' : '⚠️ Aún no hay token.'}
+          Necesario para separar las voces (pyannote). Se guarda cifrado y nunca sale del equipo.
+          Pasos (una sola vez):
         </p>
+        <ol className="onb-list">
+          <li>
+            Crea una cuenta gratis:{' '}
+            <a href="https://huggingface.co/join" target="_blank" rel="noreferrer">
+              huggingface.co/join
+            </a>
+          </li>
+          <li>
+            Inicia sesión y <strong>acepta las DOS licencias</strong> (botón “Agree”):{' '}
+            <a href="https://huggingface.co/pyannote/segmentation-3.0" target="_blank" rel="noreferrer">
+              ① segmentation-3.0
+            </a>{' '}
+            ·{' '}
+            <a
+              href="https://huggingface.co/pyannote/speaker-diarization-3.1"
+              target="_blank"
+              rel="noreferrer"
+            >
+              ② speaker-diarization-3.1
+            </a>
+          </li>
+          <li>
+            Genera un token (tipo “Read”):{' '}
+            <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noreferrer">
+              huggingface.co/settings/tokens
+            </a>
+          </li>
+        </ol>
         <div className="field-row">
           <input
             type="password"
             placeholder="hf_…"
             value={hfToken}
-            onChange={(e) => setHfToken(e.target.value)}
+            onChange={(e) => {
+              setHfToken(e.target.value)
+              setHfRes(null)
+            }}
           />
-          <button className="btn btn-primary btn-sm" onClick={guardarToken}>
-            Guardar token
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={guardarToken}
+            disabled={!hfToken.trim() || hfChecking}
+          >
+            {hfChecking ? 'Verificando…' : 'Verificar y guardar'}
           </button>
         </div>
+        {hfRes && (
+          <div className="onb-result">
+            {hfRes.validToken ? (
+              <>
+                <p className="ok">
+                  ✅ Token válido{hfRes.user ? ` — conectado como ${hfRes.user}` : ''}.
+                </p>
+                {hfRes.accessOk ? (
+                  <p className="ok">✅ Acceso a los modelos confirmado.</p>
+                ) : (
+                  <p className="warn">
+                    ⚠️ Te falta aceptar alguna licencia (enlaces ① y ② de arriba → “Agree”), luego
+                    verifica de nuevo.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="warn">⚠️ El token no es válido. Revísalo o genera uno nuevo.</p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="card">
@@ -328,6 +431,34 @@ export function SettingsView(): JSX.Element {
         <button className="btn btn-sm" onClick={() => api.openDataFolder()}>
           Abrir carpeta de datos
         </button>
+      </div>
+
+      <div className="card">
+        <h3 className="card-title">Actualizaciones</h3>
+        <p className="muted">
+          Versión actual: <strong>{version || '…'}</strong>
+        </p>
+        <button
+          className="btn btn-sm"
+          onClick={buscarActualizaciones}
+          disabled={upd?.state === 'checking' || upd?.state === 'downloading'}
+        >
+          {upd?.state === 'checking' ? 'Buscando…' : 'Buscar actualizaciones'}
+        </button>
+        {upd && upd.state !== 'idle' && (
+          <p className="muted" style={{ marginTop: 10 }}>
+            {mensajeUpdate(upd)}
+          </p>
+        )}
+        {upd?.state === 'downloaded' && (
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ marginTop: 8 }}
+            onClick={() => api.installUpdate()}
+          >
+            Reiniciar e instalar
+          </button>
+        )}
       </div>
     </div>
   )

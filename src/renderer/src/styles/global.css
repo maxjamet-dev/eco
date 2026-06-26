@@ -1520,6 +1520,20 @@ select:focus-visible {
 .onb-list a {
   color: var(--text);
 }
+.onb-result {
+  margin: 6px 0 0;
+}
+.onb-result .ok {
+  color: var(--good);
+  font-size: 13.5px;
+  margin: 4px 0;
+}
+.onb-result .warn {
+  color: var(--warn);
+  font-size: 13.5px;
+  margin: 4px 0;
+  line-height: 1.5;
+}
 .onb-card .search-input {
   width: 100%;
   margin-top: 4px;

@@ -9,6 +9,12 @@ export function Onboarding({ onDone }: { onDone: () => void }): JSX.Element {
   const [tokenSaved, setTokenSaved] = useState(false)
   const [preparing, setPreparing] = useState(false)
   const [lines, setLines] = useState<string[]>([])
+  const [validating, setValidating] = useState(false)
+  const [hfResult, setHfResult] = useState<{
+    validToken: boolean
+    user: string | null
+    accessOk: boolean
+  } | null>(null)
 
   useEffect(() => {
     void api.detectHardware().then((h) => setDevice(h.device === 'cuda' ? 'cuda' : 'cpu'))
@@ -17,13 +23,16 @@ export function Onboarding({ onDone }: { onDone: () => void }): JSX.Element {
     return off
   }, [])
 
-  async function guardarToken(): Promise<void> {
-    if (token.trim()) {
+  async function verificarYGuardar(): Promise<void> {
+    if (!token.trim()) return
+    setValidating(true)
+    const res = await api.validateHfToken(token.trim())
+    setValidating(false)
+    setHfResult(res)
+    if (res.validToken) {
       await api.setHfToken(token.trim())
       setTokenSaved(true)
-      setToken('')
     }
-    setStep(2)
   }
 
   async function preparar(): Promise<void> {
@@ -70,49 +79,93 @@ export function Onboarding({ onDone }: { onDone: () => void }): JSX.Element {
           <>
             <h2>Token de Hugging Face</h2>
             <p className="onb-p">
-              Para <strong>separar las voces</strong> (quién dijo qué) eco usa un modelo gratuito
-              que requiere un token. Tres pasos rápidos:
+              Para <strong>separar las voces</strong> (quién dijo qué), eco usa unos modelos
+              gratuitos de “pyannote” que piden un token. Son 4 pasos, una sola vez:
             </p>
             <ol className="onb-list">
               <li>
-                Crea una cuenta gratis en{' '}
+                Crea una cuenta gratis:{' '}
                 <a href="https://huggingface.co/join" target="_blank" rel="noreferrer">
                   huggingface.co/join
                 </a>
               </li>
               <li>
-                Acepta la licencia del modelo en{' '}
+                Inicia sesión y <strong>acepta las DOS licencias</strong> (botón “Agree” en cada
+                una):
+                <br />
+                <a
+                  href="https://huggingface.co/pyannote/segmentation-3.0"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  ① segmentation-3.0
+                </a>{' '}
+                ·{' '}
                 <a
                   href="https://huggingface.co/pyannote/speaker-diarization-3.1"
                   target="_blank"
                   rel="noreferrer"
                 >
-                  pyannote/speaker-diarization-3.1
+                  ② speaker-diarization-3.1
                 </a>
               </li>
               <li>
-                Genera un token en{' '}
+                Genera un token (tipo “Read”):{' '}
                 <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noreferrer">
                   huggingface.co/settings/tokens
-                </a>{' '}
-                y pégalo aquí:
+                </a>
               </li>
+              <li>Pégalo aquí y pulsa “Verificar”:</li>
             </ol>
             <input
               className="search-input"
               type="password"
               placeholder="hf_…"
               value={token}
-              onChange={(e) => setToken(e.target.value)}
+              onChange={(e) => {
+                setToken(e.target.value)
+                setHfResult(null)
+              }}
             />
-            {tokenSaved && <p className="onb-p muted">✅ Ya hay un token guardado.</p>}
+            {hfResult && (
+              <div className="onb-result">
+                {hfResult.validToken ? (
+                  <>
+                    <p className="ok">
+                      ✅ Token válido{hfResult.user ? ` — conectado como ${hfResult.user}` : ''}.
+                    </p>
+                    {hfResult.accessOk ? (
+                      <p className="ok">✅ Acceso a los modelos confirmado. ¡Todo listo!</p>
+                    ) : (
+                      <p className="warn">
+                        ⚠️ Te falta aceptar alguna licencia. Vuelve a los enlaces ① y ② de
+                        arriba, pulsa “Agree”, y verifica de nuevo.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="warn">⚠️ El token no es válido. Revísalo o genera uno nuevo.</p>
+                )}
+              </div>
+            )}
+            {tokenSaved && !hfResult && <p className="onb-p muted">✅ Ya hay un token guardado.</p>}
             <div className="onb-actions">
               <button className="btn btn-sm" onClick={() => setStep(2)}>
                 Saltar por ahora
               </button>
-              <button className="btn btn-primary btn-sm" onClick={guardarToken}>
-                {token.trim() ? 'Guardar y continuar' : 'Continuar'}
-              </button>
+              {hfResult?.validToken ? (
+                <button className="btn btn-primary btn-sm" onClick={() => setStep(2)}>
+                  Continuar
+                </button>
+              ) : (
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={verificarYGuardar}
+                  disabled={!token.trim() || validating}
+                >
+                  {validating ? 'Verificando…' : 'Verificar y guardar'}
+                </button>
+              )}
             </div>
           </>
         )}

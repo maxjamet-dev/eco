@@ -163,6 +163,26 @@ export interface IpcRequestMap {
     request: Record<string, never>
     response: { ok: boolean }
   }
+  /** Valida un token de Hugging Face (válido + acceso a los modelos de pyannote). */
+  'hf:validate': {
+    request: { token: string }
+    response: { validToken: boolean; user: string | null; accessOk: boolean }
+  }
+  /** Versión actual de la app. */
+  'app:version': {
+    request: Record<string, never>
+    response: { version: string }
+  }
+  /** Busca actualizaciones (estado por `update:status`). */
+  'update:check': {
+    request: Record<string, never>
+    response: { ok: boolean }
+  }
+  /** Reinicia e instala la actualización descargada. */
+  'update:install': {
+    request: Record<string, never>
+    response: { ok: boolean }
+  }
 }
 
 /** Destino de navegación de la ventana principal (espejo de View del renderer). */
@@ -184,6 +204,13 @@ export interface IpcEventMap {
   'env:progress': { line: string }
   /** Línea de progreso de la descarga del modelo de Ollama. */
   'ollama:progress': { line: string }
+  /** Estado de la búsqueda/descarga de actualizaciones. */
+  'update:status': {
+    state: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error' | 'dev'
+    version?: string
+    percent?: number
+    message?: string
+  }
 }
 
 export type IpcRequestChannel = keyof IpcRequestMap
@@ -222,7 +249,11 @@ export const IPC_REQUEST_CHANNELS: IpcRequestChannel[] = [
   'env:status',
   'env:prepare',
   'ollama:status',
-  'ollama:pull'
+  'ollama:pull',
+  'hf:validate',
+  'app:version',
+  'update:check',
+  'update:install'
 ]
 
 export const IPC_EVENT_CHANNELS: IpcEventChannel[] = [
@@ -231,7 +262,8 @@ export const IPC_EVENT_CHANNELS: IpcEventChannel[] = [
   'ui:navigate',
   'recording:autoStop',
   'env:progress',
-  'ollama:progress'
+  'ollama:progress',
+  'update:status'
 ]
 
 /** Forma de la API que el preload expone en `window.api`. */
