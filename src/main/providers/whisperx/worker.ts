@@ -3,6 +3,7 @@ import { connect } from 'node:net'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
+import { dataDir } from '../../paths'
 import { createLogger } from '../../logger'
 import type { WhisperXTransport } from './whisperXProvider'
 import type { WhisperXRequest } from './protocol'
@@ -14,27 +15,48 @@ const READY_TIMEOUT_MS = 120_000
 const REQUEST_TIMEOUT_MS = 30 * 60 * 1000 // transcripciones largas
 
 /**
- * Resuelve el ejecutable de Python del venv y la ruta del worker.
- * En desarrollo: ./python/.venv + ./python/worker.py
- * Empaquetado: resources/python/.venv + resources/python/worker.py
+ * Resuelve el intérprete de Python y la ruta del worker.
+ *
+ * - `worker.py` (y audio_io/compat) viven junto al código: `./python` en dev,
+ *   `resources/python` empaquetado.
+ * - El intérprete: se prefiere el venv **preparado por el asistente** en
+ *   `%APPDATA%/eco/runtime/venv`; si no existe, se cae al `python/.venv` del
+ *   repo (modo desarrollo).
  */
 function resolvePythonPaths(): { python: string; script: string; cwd: string } | null {
-  const candidates = [
-    // Empaquetado (extraResources)
+  const bases = [
     process.resourcesPath ? join(process.resourcesPath, 'python') : null,
-    // Desarrollo
     app?.isPackaged === false ? join(app.getAppPath(), 'python') : null,
     join(process.cwd(), 'python')
   ].filter((p): p is string => Boolean(p))
 
-  for (const base of candidates) {
-    const python = join(base, '.venv', 'Scripts', 'python.exe')
-    const script = join(base, 'worker.py')
-    if (existsSync(python) && existsSync(script)) {
-      return { python, script, cwd: base }
+  // 1) Ubicar worker.py (código, no venv).
+  let script: string | null = null
+  let cwd: string | null = null
+  for (const base of bases) {
+    if (existsSync(join(base, 'worker.py'))) {
+      script = join(base, 'worker.py')
+      cwd = base
+      break
     }
   }
-  return null
+  if (!script || !cwd) return null
+
+  // 2) Intérprete: venv preparado (%APPDATA%/eco/runtime) y si no, el del repo.
+  const prepared = join(dataDir(), 'runtime', 'venv', 'Scripts', 'python.exe')
+  let python: string | null = existsSync(prepared) ? prepared : null
+  if (!python) {
+    for (const base of bases) {
+      const p = join(base, '.venv', 'Scripts', 'python.exe')
+      if (existsSync(p)) {
+        python = p
+        break
+      }
+    }
+  }
+  if (!python) return null
+
+  return { python, script, cwd }
 }
 
 /**

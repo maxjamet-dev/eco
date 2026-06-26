@@ -67,6 +67,37 @@ export class Orchestrator {
     void this.drain()
   }
 
+  /**
+   * Regenera solo el resumen de una grabación ya transcrita, sin volver a
+   * transcribir/diarizar. Si falla, conserva el resumen anterior.
+   */
+  async resummarize(recordingId: string): Promise<{ ok: boolean }> {
+    const rec = this.deps.repos.recordings.get(recordingId)
+    if (!rec) return { ok: false }
+    const transcript = this.deps.repos.transcripts.listByRecording(recordingId)
+    if (transcript.length === 0) return { ok: false }
+    const settings = this.deps.getSettings()
+    this.deps.repos.recordings.setStatus(recordingId, 'summarizing')
+    this.emit(recordingId, 'summarizing', 'summarize')
+    try {
+      const summary = await this.deps.summarization.summarize(transcript, {
+        model: settings.modeloLlm
+      })
+      this.deps.repos.summaries.upsert(recordingId, summary)
+      this.deps.repos.recordings.setStatus(recordingId, 'completed')
+      this.emit(recordingId, 'completed', 'summarize', 100)
+      log.info('Resumen regenerado', { recordingId })
+      return { ok: true }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      log.error('Fallo regenerando resumen', { recordingId, error: msg })
+      // Conservamos el resumen previo; volvemos a "completed".
+      this.deps.repos.recordings.setStatus(recordingId, 'completed')
+      this.emit(recordingId, 'completed', 'summarize', 100, 'No se pudo regenerar el resumen')
+      return { ok: false }
+    }
+  }
+
   /** Reanuda trabajos interrumpidos al arrancar la app. */
   async resumePending(): Promise<void> {
     this.deps.repos.jobs.resetRunningToPending()
@@ -146,19 +177,21 @@ export class Orchestrator {
       })
       this.persistTranscript(recordingId, merged)
 
-      // --- Etapa 3: resumen ---
-      this.deps.repos.recordings.setStatus(recordingId, 'summarizing')
-      this.emit(recordingId, 'summarizing', 'summarize')
-      const sumJob = this.deps.repos.jobs.enqueue(recordingId, 'summarize', this.deps.now())
-      this.deps.repos.jobs.markRunning(sumJob.id)
-      const transcript = this.deps.repos.transcripts.listByRecording(recordingId)
-      if (transcript.length > 0) {
-        const summary = await this.deps.summarization.summarize(transcript, {
-          model: settings.modeloLlm
-        })
-        this.deps.repos.summaries.upsert(recordingId, summary)
+      // --- Etapa 3: resumen (opcional; por defecto se genera a petición) ---
+      if (settings.resumenAutomatico) {
+        this.deps.repos.recordings.setStatus(recordingId, 'summarizing')
+        this.emit(recordingId, 'summarizing', 'summarize')
+        const sumJob = this.deps.repos.jobs.enqueue(recordingId, 'summarize', this.deps.now())
+        this.deps.repos.jobs.markRunning(sumJob.id)
+        const transcript = this.deps.repos.transcripts.listByRecording(recordingId)
+        if (transcript.length > 0) {
+          const summary = await this.deps.summarization.summarize(transcript, {
+            model: settings.modeloLlm
+          })
+          this.deps.repos.summaries.upsert(recordingId, summary)
+        }
+        this.deps.repos.jobs.markDone(sumJob.id)
       }
-      this.deps.repos.jobs.markDone(sumJob.id)
 
       // --- Completado ---
       this.deps.repos.recordings.setStatus(recordingId, 'completed')

@@ -99,6 +99,8 @@ export interface MeetingSummary {
   puntosClave: string[]
   actionItems: ActionItem[]
   modeloUsado: string
+  /** Valoración del usuario sobre el resumen (null = sin valorar). */
+  feedback?: 'up' | 'down' | null
 }
 
 /** Un trabajo de la cola de procesamiento. */
@@ -149,6 +151,16 @@ export interface AppSettings {
   tieneTokenHf: boolean // si hay token guardado (el token nunca viaja al renderer)
   usarNube: boolean // futuro
   idiomaTranscripcion: string // "es"
+  /** Si es true, el resumen se genera solo al terminar; si no, a petición (botón). */
+  resumenAutomatico: boolean
+  /** Al cerrar la ventana, mantener eco corriendo en la bandeja del sistema. */
+  minimizarABandejaAlCerrar: boolean
+  /** Iniciar eco automáticamente con Windows (oculto en la bandeja). */
+  iniciarConWindows: boolean
+  /** Detectar reuniones automáticamente por el uso del micrófono. */
+  detectarReuniones: boolean
+  /** Interno: ya se preguntó por el inicio con Windows en el primer arranque. */
+  preguntoInicioConWindows: boolean
 }
 
 /** Progreso publicado main→renderer durante el procesamiento. */

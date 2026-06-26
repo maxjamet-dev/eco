@@ -2,7 +2,7 @@
   "name": "grabador-reuniones",
   "version": "0.1.0",
   "description": "Grabador local de reuniones con transcripción, diarización y resumen — 100% local",
-  "author": "Fundación Ciudad de Paz",
+  "author": "Max Jamet",
   "license": "UNLICENSED",
   "private": true,
   "main": "./out/main/index.js",
@@ -21,10 +21,13 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
-    "package": "electron-vite build && electron-builder --win",
-    "package:dir": "electron-vite build && electron-builder --win --dir"
+    "fetch:uv": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/fetch-uv.ps1",
+    "package": "npm run fetch:uv && electron-vite build && electron-builder --win",
+    "package:dir": "npm run fetch:uv && electron-vite build && electron-builder --win --dir",
+    "release": "npm run fetch:uv && electron-vite build && electron-builder --win --publish always"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^5.0.3"

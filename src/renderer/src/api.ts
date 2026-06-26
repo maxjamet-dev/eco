@@ -42,6 +42,15 @@ export const api = {
   searchGlobal: (query: string) => invoke('transcript:searchGlobal', { query }),
   renameSpeaker: (recordingId: string, speakerId: number, nombre: string) =>
     invoke('speaker:rename', { recordingId, speakerId, nombre }),
+  regenerateSummary: (id: string) => invoke('summary:regenerate', { id }),
+  setSummaryFeedback: (recordingId: string, feedback: 'up' | 'down' | null) =>
+    invoke('summary:setFeedback', { recordingId, feedback }),
+  openRecording: (recordingId: string) => invoke('ui:openRecording', { recordingId }),
+  closeWidget: () => invoke('widget:close', {}),
+  envStatus: () => invoke('env:status', {}),
+  prepareEnv: (device: 'cuda' | 'cpu') => invoke('env:prepare', { device }),
+  ollamaStatus: () => invoke('ollama:status', {}),
+  pullOllamaModel: () => invoke('ollama:pull', {}),
   getSettings: () => invoke('settings:get', {}),
   setSettings: (patch: Partial<IpcRequestMap['settings:set']['request']>) =>
     invoke('settings:set', patch),

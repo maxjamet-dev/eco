@@ -63,7 +63,7 @@ function setup(overrides: Partial<OrchestratorDeps> = {}) {
     repos,
     selectProviders: async () => ({ device: 'cuda', transcription: whisperx }),
     summarization: summarizer,
-    getSettings: () => ({ ...DEFAULT_SETTINGS }),
+    getSettings: () => ({ ...DEFAULT_SETTINGS, resumenAutomatico: true }),
     getHfToken: () => 'hf_fake',
     emitProgress: (p) => progress.push(p),
     now: () => '2026-06-24T00:00:00.000Z',
@@ -148,6 +148,34 @@ describe('Orchestrator — fallo y reintento', () => {
     await vi.waitFor(() => expect(ctx.repos.recordings.get(id)!.estado).toBe('completed'))
     // No se duplican segmentos (limpieza idempotente).
     expect(ctx.repos.transcripts.listByRecording(id).length).toBe(3)
+  })
+})
+
+describe('Orchestrator — resumen opcional', () => {
+  it('no resume automáticamente cuando resumenAutomatico=false', async () => {
+    const ctx = setup({ getSettings: () => ({ ...DEFAULT_SETTINGS, resumenAutomatico: false }) })
+    const id = captured(ctx.repos)
+    ctx.orch.enqueue(id)
+    await vi.waitFor(() => expect(ctx.repos.recordings.get(id)!.estado).toBe('completed'))
+    // No se llamó al resumidor ni se guardó resumen, pero sí hay transcripción.
+    expect(ctx.summarizer.calls).toBe(0)
+    expect(ctx.repos.summaries.get(id)).toBeNull()
+    expect(ctx.progress.map((p) => p.estado)).not.toContain('summarizing')
+    expect(ctx.repos.transcripts.listByRecording(id).length).toBe(3)
+  })
+
+  it('resume a petición vía resummarize', async () => {
+    const ctx = setup({ getSettings: () => ({ ...DEFAULT_SETTINGS, resumenAutomatico: false }) })
+    const id = captured(ctx.repos)
+    ctx.orch.enqueue(id)
+    await vi.waitFor(() => expect(ctx.repos.recordings.get(id)!.estado).toBe('completed'))
+    expect(ctx.repos.summaries.get(id)).toBeNull()
+
+    const r = await ctx.orch.resummarize(id)
+    expect(r.ok).toBe(true)
+    expect(ctx.summarizer.calls).toBe(1)
+    expect(ctx.repos.summaries.get(id)!.resumen).toContain('3 segmentos')
+    expect(ctx.repos.recordings.get(id)!.estado).toBe('completed')
   })
 })
 

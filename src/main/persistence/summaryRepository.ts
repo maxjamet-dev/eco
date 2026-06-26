@@ -5,6 +5,7 @@ interface SummaryRow {
   resumen: string
   puntos_clave: string
   modelo_usado: string | null
+  feedback: number | null
 }
 
 interface ActionItemRow {
@@ -24,7 +25,8 @@ export class SummaryRepository {
            ON CONFLICT(recording_id) DO UPDATE SET
              resumen = excluded.resumen,
              puntos_clave = excluded.puntos_clave,
-             modelo_usado = excluded.modelo_usado`
+             modelo_usado = excluded.modelo_usado,
+             feedback = NULL`
         )
         .run(
           recordingId,
@@ -64,7 +66,16 @@ export class SummaryRepository {
         descripcion: a.descripcion,
         responsable: a.responsable ?? undefined
       })),
-      modeloUsado: row.modelo_usado ?? ''
+      modeloUsado: row.modelo_usado ?? '',
+      feedback: row.feedback === 1 ? 'up' : row.feedback === -1 ? 'down' : null
     }
+  }
+
+  /** Guarda la valoración del usuario sobre el resumen. */
+  setFeedback(recordingId: string, feedback: 'up' | 'down' | null): void {
+    const valor = feedback === 'up' ? 1 : feedback === 'down' ? -1 : null
+    this.db
+      .prepare('UPDATE summaries SET feedback = ? WHERE recording_id = ?')
+      .run(valor, recordingId)
   }
 }

@@ -125,12 +125,65 @@ export interface IpcRequestMap {
     request: Record<string, never>
     response: { ok: boolean }
   }
+  'summary:regenerate': {
+    request: { id: string }
+    response: { ok: boolean }
+  }
+  'summary:setFeedback': {
+    request: { recordingId: string; feedback: 'up' | 'down' | null }
+    response: { ok: boolean }
+  }
+  /** Desde el widget: abrir la ventana principal en la grabación recién iniciada. */
+  'ui:openRecording': {
+    request: { recordingId: string }
+    response: { ok: boolean }
+  }
+  /** Cerrar el widget flotante. */
+  'widget:close': {
+    request: Record<string, never>
+    response: { ok: boolean }
+  }
+  /** Estado del entorno de IA (venv + modelos). */
+  'env:status': {
+    request: Record<string, never>
+    response: { ready: boolean; device: string | null; preparing: boolean }
+  }
+  /** Prepara el entorno de IA (descarga/instala). El progreso va por `env:progress`. */
+  'env:prepare': {
+    request: { device: 'cuda' | 'cpu' }
+    response: { ok: boolean }
+  }
+  /** Estado de Ollama (corriendo + modelo de resumen descargado). */
+  'ollama:status': {
+    request: Record<string, never>
+    response: { running: boolean; modelReady: boolean; model: string }
+  }
+  /** Descarga el modelo de resumen vía Ollama. Progreso por `ollama:progress`. */
+  'ollama:pull': {
+    request: Record<string, never>
+    response: { ok: boolean }
+  }
 }
+
+/** Destino de navegación de la ventana principal (espejo de View del renderer). */
+export type NavTarget =
+  | { name: 'home' }
+  | { name: 'settings' }
+  | { name: 'recording'; recordingId: string }
+  | { name: 'detail'; recordingId: string }
 
 /** Canales de eventos main→renderer (push). */
 export interface IpcEventMap {
   'processing:progress': ProcessingProgress
   'audio:levels': AudioLevels
+  /** Pide a la ventana principal navegar a una vista. */
+  'ui:navigate': NavTarget
+  /** La reunión detectada terminó mientras se grababa → ofrecer detener. */
+  'recording:autoStop': { recordingId: string }
+  /** Línea de progreso de la preparación del entorno de IA. */
+  'env:progress': { line: string }
+  /** Línea de progreso de la descarga del modelo de Ollama. */
+  'ollama:progress': { line: string }
 }
 
 export type IpcRequestChannel = keyof IpcRequestMap
@@ -161,10 +214,25 @@ export const IPC_REQUEST_CHANNELS: IpcRequestChannel[] = [
   'audio:listDevices',
   'hardware:detect',
   'system:readiness',
-  'system:openDataFolder'
+  'system:openDataFolder',
+  'summary:regenerate',
+  'summary:setFeedback',
+  'ui:openRecording',
+  'widget:close',
+  'env:status',
+  'env:prepare',
+  'ollama:status',
+  'ollama:pull'
 ]
 
-export const IPC_EVENT_CHANNELS: IpcEventChannel[] = ['processing:progress', 'audio:levels']
+export const IPC_EVENT_CHANNELS: IpcEventChannel[] = [
+  'processing:progress',
+  'audio:levels',
+  'ui:navigate',
+  'recording:autoStop',
+  'env:progress',
+  'ollama:progress'
+]
 
 /** Forma de la API que el preload expone en `window.api`. */
 export interface RendererApi {

@@ -1,6 +1,6 @@
-appId: cl.fundacionciudaddepaz.grabadorreuniones
-productName: Grabador de Reuniones
-copyright: Copyright © 2026 Fundación Ciudad de Paz
+appId: app.eco.grabador
+productName: eco
+copyright: Copyright © 2026 Max Jamet
 
 directories:
   buildResources: build
@@ -12,18 +12,25 @@ files:
 
 # Recursos pesados (modelos, binarios nativos, worker python) se resuelven
 # en el primer arranque, no se empaquetan (ADR-7). Solo se incluye el binario
-# de captura Rust si existe compilado.
+# de captura Rust si existe compilado, y los íconos de la bandeja.
 extraResources:
   - from: resources/
     to: resources/
     filter:
       - '**/*'
+  # Scripts del worker whisperX (worker.py, audio_io.py, compat.py).
+  # NO se empaqueta el .venv: el entorno se crea en %APPDATA%/eco en el 1er arranque.
+  - from: python/
+    to: python/
+    filter:
+      - '*.py'
 
 asarUnpack:
   - '**/*.node'
   - resources/**
 
 win:
+  icon: build/icon.ico
   target:
     - target: nsis
       arch:
@@ -36,7 +43,10 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Grabador de Reuniones
+  shortcutName: eco
 
-# Auto-update (configurar feed más adelante)
-publish: null
+# Auto-update vía GitHub Releases (electron-updater). Repo: maxjamet-dev/eco
+publish:
+  provider: github
+  owner: maxjamet-dev
+  repo: eco

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createNodeSqliteDriver } from './nodeSqliteDriver'
-import { runMigrations } from './migrations'
+import { runMigrations, LATEST_SCHEMA_VERSION } from './migrations'
 import { createRepositories, type Repositories } from './index'
 
 function fresh(): Repositories {
@@ -93,9 +93,9 @@ describe('RecordingRepository — update y filtros', () => {
     expect(repos.recordings.list()).toHaveLength(2)
   })
 
-  it('migración v2 es idempotente', () => {
+  it('las migraciones se aplican y son idempotentes', () => {
     const db = createNodeSqliteDriver(':memory:')
-    expect(runMigrations(db)).toBe(2)
+    expect(runMigrations(db)).toBe(LATEST_SCHEMA_VERSION)
     expect(() => runMigrations(db)).not.toThrow()
   })
 })

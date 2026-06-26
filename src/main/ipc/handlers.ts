@@ -10,14 +10,27 @@ import { getOrchestrator } from '../orchestrator'
 import { NativeCaptureController } from '../capture/captureController'
 import { HardwareDetector } from '../hardware/detect'
 import { hasSecret, setSecret, HF_TOKEN_KEY } from '../secrets'
+import { setAutoLaunch, setTrayRecording } from '../tray'
+import { getEnvStatus, prepareEnv } from '../envManager'
+import { getOllamaStatus, pullOllamaModel } from '../ollamaManager'
 import { recordingDir, dataDir } from '../paths'
 import { createLogger } from '../logger'
+import { importAudio } from '../import/audioImport'
 
 const log = createLogger('ipc')
 
 // Una grabación activa a la vez (MVP).
 let activeCapture: { controller: NativeCaptureController; recordingId: string } | null = null
 const detector = new HardwareDetector()
+
+/** ¿Hay una grabación en curso? (lo consulta el detector de reuniones.) */
+export function isRecordingActive(): boolean {
+  return activeCapture !== null
+}
+/** Id de la grabación en curso, o null. */
+export function getActiveRecordingId(): string | null {
+  return activeCapture?.recordingId ?? null
+}
 
 function broadcastLevels(levels: AudioLevels): void {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -48,6 +61,7 @@ export function registerIpcHandlers(): void {
         sysDeviceId: settings.sysDeviceId
       })
       activeCapture = { controller, recordingId: rec.id }
+      setTrayRecording(true)
     } catch (err) {
       log.error('No se pudo iniciar la captura', String(err))
       repos.recordings.setStatus(rec.id, 'failed')
@@ -62,6 +76,7 @@ export function registerIpcHandlers(): void {
     }
     const result = await activeCapture.controller.stop()
     activeCapture = null
+    setTrayRecording(false)
     repos.recordings.setAudioPaths(payload.id, result.micPath, result.sysPath, result.offsetSysMs)
     repos.recordings.setDuration(payload.id, result.durationMs)
     repos.recordings.setStatus(payload.id, 'captured')
@@ -106,12 +121,10 @@ export function registerIpcHandlers(): void {
   )
 
   ipcMain.handle('recording:importFile', async (_e, payload) => {
-    const { importAudio } = await import('../import/audioImport')
     return importAudio(payload)
   })
 
   ipcMain.handle('recording:importBytes', async (_e, payload) => {
-    const { importAudio } = await import('../import/audioImport')
     return importAudio(payload)
   })
 
@@ -161,6 +174,18 @@ export function registerIpcHandlers(): void {
     return { ok: true }
   })
 
+  ipcMain.handle('summary:regenerate', async (_e, payload: { id: string }) => {
+    return getOrchestrator().resummarize(payload.id)
+  })
+
+  ipcMain.handle(
+    'summary:setFeedback',
+    async (_e, payload: { recordingId: string; feedback: 'up' | 'down' | null }) => {
+      repos.summaries.setFeedback(payload.recordingId, payload.feedback)
+      return { ok: true }
+    }
+  )
+
   ipcMain.handle('transcript:search', async (_e, payload: { id: string; query: string }) => {
     return repos.transcripts.search(payload.id, payload.query)
   })
@@ -186,6 +211,7 @@ export function registerIpcHandlers(): void {
     // No persistimos campos derivados/sensibles.
     const { tieneTokenHf: _t, carpetaDatos: _c, ...safe } = patch
     const s = repos.settings.set(safe)
+    if ('iniciarConWindows' in safe) setAutoLaunch(s.iniciarConWindows)
     return { ...s, tieneTokenHf: hasSecret(HF_TOKEN_KEY), carpetaDatos: dataDir() }
   })
 
@@ -213,6 +239,14 @@ export function registerIpcHandlers(): void {
     await shell.openPath(dataDir())
     return { ok: true }
   })
+
+  ipcMain.handle('env:status', async () => getEnvStatus())
+  ipcMain.handle('env:prepare', async (_e, payload: { device: 'cuda' | 'cpu' }) =>
+    prepareEnv(payload.device)
+  )
+
+  ipcMain.handle('ollama:status', async () => getOllamaStatus())
+  ipcMain.handle('ollama:pull', async () => pullOllamaModel())
 
   log.info('Handlers IPC registrados')
 }

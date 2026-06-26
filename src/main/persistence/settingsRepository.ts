@@ -17,7 +17,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   backend: 'auto',
   tieneTokenHf: false,
   usarNube: false,
-  idiomaTranscripcion: 'es'
+  idiomaTranscripcion: 'es',
+  resumenAutomatico: false,
+  minimizarABandejaAlCerrar: true,
+  iniciarConWindows: false,
+  detectarReuniones: true,
+  preguntoInicioConWindows: false
 }
 
 interface SettingRow {

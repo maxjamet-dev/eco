@@ -18,6 +18,7 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
   const [copied, setCopied] = useState('')
   const [editingSpeaker, setEditingSpeaker] = useState<number | null>(null)
   const [spkName, setSpkName] = useState('')
+  const [regenerating, setRegenerating] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
   const [currentTrack, setCurrentTrack] = useState<'mic' | 'system'>('system')
 
@@ -104,6 +105,23 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
       await api.renameSpeaker(recordingId, sp.id, nombre)
       void load()
     }
+  }
+
+  async function regenerar(): Promise<void> {
+    setRegenerating(true)
+    try {
+      await api.regenerateSummary(recordingId)
+    } finally {
+      setRegenerating(false)
+      void load()
+    }
+  }
+
+  async function valorar(fb: 'up' | 'down'): Promise<void> {
+    if (!detail?.summary) return
+    const next = detail.summary.feedback === fb ? null : fb
+    await api.setSummaryFeedback(recordingId, next)
+    void load()
   }
 
   return (
@@ -267,7 +285,43 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
                   </ul>
                 </>
               )}
+              <div className="ai-actions">
+                <span className="ai-q">¿Útil?</span>
+                <button
+                  className={`fb ${summary.feedback === 'up' ? 'on' : ''}`}
+                  title="Buen resumen"
+                  aria-label="Buen resumen"
+                  onClick={() => valorar('up')}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M7 10v11M14 4l-2 6h6a2 2 0 0 1 2 2.3l-1 6A2 2 0 0 1 17 21H7V10l4-7a1.5 1.5 0 0 1 3 1z" />
+                  </svg>
+                </button>
+                <button
+                  className={`fb ${summary.feedback === 'down' ? 'on down' : ''}`}
+                  title="Resumen flojo"
+                  aria-label="Resumen flojo"
+                  onClick={() => valorar('down')}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M17 14V3M10 20l2-6H6a2 2 0 0 1-2-2.3l1-6A2 2 0 0 1 7 3h10v11l-4 7a1.5 1.5 0 0 1-3-1z" />
+                  </svg>
+                </button>
+                <button className="regen" onClick={regenerar} disabled={regenerating}>
+                  {regenerating ? 'Regenerando…' : '↻ Regenerar'}
+                </button>
+              </div>
               <p className="muted model-note">Generado por {summary.modeloUsado}</p>
+            </div>
+          )}
+
+          {!summary && recording.estado === 'completed' && segments.length > 0 && (
+            <div className="card">
+              <h3 className="card-title">Resumen</h3>
+              <p className="muted">Aún no has generado el resumen de esta reunión.</p>
+              <button className="btn btn-primary btn-sm" onClick={regenerar} disabled={regenerating}>
+                {regenerating ? 'Generando…' : '✨ Generar resumen'}
+              </button>
             </div>
           )}
         </aside>

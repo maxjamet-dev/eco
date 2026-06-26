@@ -1,11 +1,52 @@
-import { app, BrowserWindow, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'electron'
 import { join, normalize } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import type { AppSettings } from '@shared/types'
+import type { IpcEventMap } from '@shared/ipc'
 import { configureLogger, createLogger } from './logger'
 import { logsDir, recordingsDir } from './paths'
+import { destroyTray, setAutoLaunch, setupTray } from './tray'
+import { startMeetingDetector } from './meetingDetector'
+import { hideWidget, showWidget } from './widget'
+import { getActiveRecordingId, isRecordingActive } from './ipc/handlers'
+import { initAutoUpdate } from './updater'
+import { getRepositories } from './persistence/db'
 
 const log = createLogger('main')
 let mainWindow: BrowserWindow | null = null
+let isQuitting = false
+
+function currentSettings(): AppSettings | null {
+  try {
+    return getRepositories().settings.getAll()
+  } catch {
+    return null
+  }
+}
+
+/** ¿eco fue lanzado oculto (autoarranque con Windows)? */
+function launchedHidden(): boolean {
+  return process.argv.includes('--hidden') || app.getLoginItemSettings().wasOpenedAtLogin
+}
+
+function showMainWindow(): void {
+  if (!mainWindow) {
+    createWindow()
+    return
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+function quitApp(): void {
+  isQuitting = true
+  app.quit()
+}
+
+function sendToMain<C extends keyof IpcEventMap>(channel: C, payload: IpcEventMap[C]): void {
+  mainWindow?.webContents.send(channel, payload)
+}
 
 // Esquema privilegiado para servir el audio local de las grabaciones de forma
 // segura al renderer (sin exponer el disco). URL: recmedia://<id>/mic.wav
@@ -47,8 +88,8 @@ function createWindow(): void {
     minHeight: 640,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: '#0f1115',
-    title: 'Grabador de Reuniones',
+    backgroundColor: '#0e1015',
+    title: 'eco',
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
@@ -57,7 +98,21 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.on('ready-to-show', () => mainWindow?.show())
+  const startHidden = launchedHidden()
+  mainWindow.on('ready-to-show', () => {
+    if (!startHidden) mainWindow?.show()
+  })
+
+  // Cerrar la ventana la oculta a la bandeja (eco sigue corriendo); salir de
+  // verdad es desde el menú de la bandeja.
+  mainWindow.on('close', (e) => {
+    if (isQuitting) return
+    const s = currentSettings()
+    if (s?.minimizarABandejaAlCerrar !== false) {
+      e.preventDefault()
+      mainWindow?.hide()
+    }
+  })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     void shell.openExternal(details.url)
@@ -70,6 +125,29 @@ function createWindow(): void {
     void mainWindow.loadURL(devUrl)
   } else {
     void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+}
+
+/** Pregunta (1 sola vez) si arrancar eco con Windows. */
+async function maybeAskAutostart(settings: AppSettings): Promise<void> {
+  if (settings.preguntoInicioConWindows || launchedHidden() || !mainWindow) return
+  const { response } = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    buttons: ['Sí, iniciar con Windows', 'Ahora no'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+    title: 'eco',
+    message: '¿Iniciar eco automáticamente con Windows?',
+    detail:
+      'Así eco queda en la bandeja y puede detectar tus reuniones para ofrecerte grabarlas. Puedes cambiarlo cuando quieras en Ajustes.'
+  })
+  const enable = response === 0
+  try {
+    getRepositories().settings.set({ iniciarConWindows: enable, preguntoInicioConWindows: true })
+    setAutoLaunch(enable)
+  } catch (e) {
+    log.error('No se pudo guardar la preferencia de autoarranque', String(e))
   }
 }
 
@@ -89,20 +167,65 @@ async function bootstrap(): Promise<void> {
 
   createWindow()
 
+  setupTray({ onOpen: showMainWindow, onQuit: quitApp })
+
+  // Handlers de UI/widget (necesitan la ventana principal + la ventana widget).
+  ipcMain.handle('ui:openRecording', (_e, payload: { recordingId: string }) => {
+    showMainWindow()
+    sendToMain('ui:navigate', { name: 'recording', recordingId: payload.recordingId })
+    hideWidget()
+    return { ok: true }
+  })
+  ipcMain.handle('widget:close', () => {
+    hideWidget()
+    return { ok: true }
+  })
+
+  // Detección de reuniones por micrófono → widget para grabar / auto-stop.
+  startMeetingDetector({
+    isEnabled: () => currentSettings()?.detectarReuniones !== false,
+    isRecording: () => isRecordingActive(),
+    onStart: (appName) => {
+      if (!isRecordingActive()) showWidget(appName)
+    },
+    onEnd: () => {
+      hideWidget()
+      const id = getActiveRecordingId()
+      if (id) sendToMain('recording:autoStop', { recordingId: id })
+    }
+  })
+
+  const settings = currentSettings()
+  if (settings) {
+    setAutoLaunch(settings.iniciarConWindows)
+    await maybeAskAutostart(settings)
+  }
+
+  void initAutoUpdate()
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 }
 
-app.whenReady().then(bootstrap).catch((err) => {
-  log.error('Error fatal en arranque', String(err))
-})
+// Instancia única: si ya hay un eco corriendo (p.ej. en la bandeja), enfocamos
+// ese en vez de abrir otro.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => showMainWindow())
+  app.whenReady().then(bootstrap).catch((err) => {
+    log.error('Error fatal en arranque', String(err))
+  })
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
 app.on('before-quit', async () => {
+  isQuitting = true
+  destroyTray()
   try {
     const { shutdownServices } = await import('./bootstrap')
     await shutdownServices()

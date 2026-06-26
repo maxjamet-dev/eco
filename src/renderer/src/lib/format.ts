@@ -30,6 +30,30 @@ export function formatDate(iso: string): string {
   }
 }
 
+/** ISO → "Hoy" / "Ayer" / "lun 23 jun" (para agrupar la línea de tiempo). */
+export function formatDayGroup(iso: string): string {
+  try {
+    const d = new Date(iso)
+    const now = new Date()
+    const startOf = (x: Date): number => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+    const diffDays = Math.round((startOf(now) - startOf(d)) / 86_400_000)
+    if (diffDays === 0) return 'Hoy'
+    if (diffDays === 1) return 'Ayer'
+    return d.toLocaleDateString('es-CL', { weekday: 'short', day: '2-digit', month: 'short' })
+  } catch {
+    return iso
+  }
+}
+
+/** ISO → "HH:mm" (hora local). */
+export function formatClock(iso: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return ''
+  }
+}
+
 export const ESTADO_LABEL: Record<RecordingStatus, string> = {
   recording: 'Grabando',
   captured: 'Capturada',

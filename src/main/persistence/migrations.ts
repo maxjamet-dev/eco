@@ -125,6 +125,14 @@ const MIGRATIONS: Migration[] = [
 
       CREATE INDEX idx_recordings_project ON recordings(project_id);
     `
+  },
+  {
+    version: 3,
+    name: 'resumen_feedback',
+    up: `
+      -- Valoración del usuario sobre el resumen (1 = útil, -1 = no útil, NULL = sin valorar).
+      ALTER TABLE summaries ADD COLUMN feedback INTEGER;
+    `
   }
 ]
 

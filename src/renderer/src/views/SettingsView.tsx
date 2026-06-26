@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
-import { api } from '../api'
+import { api, onEvent } from '../api'
 import type { AppSettings, HardwareInfo, SystemReadiness } from '@shared/types'
 
 function Check({ ok, children }: { ok: boolean; children: React.ReactNode }): JSX.Element {
@@ -20,6 +20,20 @@ export function SettingsView(): JSX.Element {
   const [readiness, setReadiness] = useState<SystemReadiness | null>(null)
   const [hfToken, setHfToken] = useState('')
   const [savedMsg, setSavedMsg] = useState('')
+  const [envStatus, setEnvStatus] = useState<{
+    ready: boolean
+    device: string | null
+    preparing: boolean
+  } | null>(null)
+  const [preparing, setPreparing] = useState(false)
+  const [envLines, setEnvLines] = useState<string[]>([])
+  const [ollamaSt, setOllamaSt] = useState<{
+    running: boolean
+    modelReady: boolean
+    model: string
+  } | null>(null)
+  const [pullingModel, setPullingModel] = useState(false)
+  const [ollamaLines, setOllamaLines] = useState<string[]>([])
 
   useEffect(() => {
     setLocal(settings)
@@ -28,6 +42,21 @@ export function SettingsView(): JSX.Element {
   useEffect(() => {
     void api.detectHardware().then(setHardware)
     void api.readiness().then(setReadiness)
+    void api.envStatus().then(setEnvStatus)
+    void api.ollamaStatus().then(setOllamaSt)
+  }, [])
+
+  useEffect(() => {
+    const offEnv = onEvent('env:progress', ({ line }) => {
+      setEnvLines((prev) => [...prev.slice(-200), line])
+    })
+    const offOllama = onEvent('ollama:progress', ({ line }) => {
+      setOllamaLines((prev) => [...prev.slice(-200), line])
+    })
+    return () => {
+      offEnv()
+      offOllama()
+    }
   }, [])
 
   if (!local) return <div className="view">Cargando ajustes…</div>
@@ -49,6 +78,24 @@ export function SettingsView(): JSX.Element {
       setSavedMsg('Token guardado')
       setTimeout(() => setSavedMsg(''), 1500)
     }
+  }
+
+  async function prepararEntorno(): Promise<void> {
+    const device: 'cuda' | 'cpu' = readiness?.gpu.device === 'cuda' ? 'cuda' : 'cpu'
+    setEnvLines([])
+    setPreparing(true)
+    await api.prepareEnv(device)
+    setPreparing(false)
+    void api.envStatus().then(setEnvStatus)
+    void api.readiness().then(setReadiness)
+  }
+
+  async function descargarModelo(): Promise<void> {
+    setOllamaLines([])
+    setPullingModel(true)
+    await api.pullOllamaModel()
+    setPullingModel(false)
+    void api.ollamaStatus().then(setOllamaSt)
   }
 
   return (
@@ -99,6 +146,71 @@ export function SettingsView(): JSX.Element {
       </div>
 
       <div className="card">
+        <h3 className="card-title">
+          Entorno de IA {envStatus?.ready ? '— ✅ listo' : '— sin preparar'}
+        </h3>
+        <p className="muted">
+          Descarga e instala el motor de transcripción (whisperX + pyannote). Puede pesar
+          varios GB y tardar; se hace una sola vez. Se instalará para{' '}
+          <strong>{readiness?.gpu.device === 'cuda' ? 'GPU NVIDIA (cu128)' : 'CPU'}</strong>.
+        </p>
+        <button className="btn btn-primary btn-sm" onClick={prepararEntorno} disabled={preparing}>
+          {preparing
+            ? 'Preparando…'
+            : envStatus?.ready
+              ? 'Reparar / reinstalar entorno'
+              : '⬇ Preparar entorno'}
+        </button>
+        {(preparing || envLines.length > 0) && (
+          <pre className="env-log">
+            {envLines
+              .map((l) =>
+                l
+                  .replace(/^::step::/, '▸ ')
+                  .replace(/^::done::/, '✓ ')
+                  .replace(/^::error::/, '✗ ')
+              )
+              .join('\n')}
+          </pre>
+        )}
+      </div>
+
+      <div className="card">
+        <h3 className="card-title">
+          Resúmenes (Ollama) {ollamaSt?.modelReady ? '— ✅ listo' : ''}
+        </h3>
+        {ollamaSt && !ollamaSt.running && (
+          <>
+            <p className="muted">
+              Ollama no está disponible. Los resúmenes lo necesitan (es opcional: transcribir
+              funciona sin él). Instálalo y ábrelo.
+            </p>
+            <a className="btn btn-sm" href="https://ollama.com/download" target="_blank" rel="noreferrer">
+              Descargar Ollama
+            </a>
+          </>
+        )}
+        {ollamaSt && ollamaSt.running && !ollamaSt.modelReady && (
+          <>
+            <p className="muted">
+              Ollama está corriendo, pero falta el modelo <strong>{ollamaSt.model}</strong>.
+            </p>
+            <button className="btn btn-primary btn-sm" onClick={descargarModelo} disabled={pullingModel}>
+              {pullingModel ? 'Descargando…' : `⬇ Descargar modelo (${ollamaSt.model})`}
+            </button>
+          </>
+        )}
+        {ollamaSt && ollamaSt.modelReady && (
+          <p className="muted">
+            ✅ Listo para resumir con <strong>{ollamaSt.model}</strong>.
+          </p>
+        )}
+        {(pullingModel || ollamaLines.length > 0) && (
+          <pre className="env-log">{ollamaLines.join('\n')}</pre>
+        )}
+      </div>
+
+      <div className="card">
         <h3 className="card-title">Motores de IA</h3>
         <label className="field">
           <span>Modelo de transcripción (whisper)</span>
@@ -142,6 +254,50 @@ export function SettingsView(): JSX.Element {
           >
             <option value="online">En línea (Yo vs los demás)</option>
             <option value="presencial">Presencial</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>Resumen al terminar</span>
+          <select
+            value={local.resumenAutomatico ? 'auto' : 'manual'}
+            onChange={(e) => update({ resumenAutomatico: e.target.value === 'auto' })}
+          >
+            <option value="manual">A petición (con un botón)</option>
+            <option value="auto">Automático al terminar</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="card">
+        <h3 className="card-title">Sistema</h3>
+        <label className="field">
+          <span>Al cerrar la ventana</span>
+          <select
+            value={local.minimizarABandejaAlCerrar ? 'bandeja' : 'salir'}
+            onChange={(e) => update({ minimizarABandejaAlCerrar: e.target.value === 'bandeja' })}
+          >
+            <option value="bandeja">Mantener en la bandeja</option>
+            <option value="salir">Salir de eco</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>Iniciar con Windows</span>
+          <select
+            value={local.iniciarConWindows ? 'si' : 'no'}
+            onChange={(e) => update({ iniciarConWindows: e.target.value === 'si' })}
+          >
+            <option value="no">No</option>
+            <option value="si">Sí (oculto en la bandeja)</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>Detectar reuniones automáticamente</span>
+          <select
+            value={local.detectarReuniones ? 'si' : 'no'}
+            onChange={(e) => update({ detectarReuniones: e.target.value === 'si' })}
+          >
+            <option value="si">Sí (ofrecer grabar al detectar el micrófono)</option>
+            <option value="no">No</option>
           </select>
         </label>
       </div>

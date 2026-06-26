@@ -25,6 +25,7 @@ python/__pycache__/
 # Binarios descargados/compilados (no versionar)
 resources/ffmpeg/
 resources/capture/
+resources/uv.exe
 
 # App data / models / logs (never commit these)
 models/
