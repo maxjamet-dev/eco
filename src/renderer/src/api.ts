@@ -42,6 +42,8 @@ export const api = {
   searchGlobal: (query: string) => invoke('transcript:searchGlobal', { query }),
   renameSpeaker: (recordingId: string, speakerId: number, nombre: string) =>
     invoke('speaker:rename', { recordingId, speakerId, nombre }),
+  suggestSpeakerNames: (recordingId: string) =>
+    invoke('speakers:suggestNames', { recordingId }),
   regenerateSummary: (id: string) => invoke('summary:regenerate', { id }),
   setSummaryFeedback: (recordingId: string, feedback: 'up' | 'down' | null) =>
     invoke('summary:setFeedback', { recordingId, feedback }),

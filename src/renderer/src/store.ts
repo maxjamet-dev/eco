@@ -1,6 +1,19 @@
 import { create } from 'zustand'
-import type { AppSettings, Project, ProcessingProgress, Recording } from '@shared/types'
+import type {
+  AppSettings,
+  Project,
+  ProcessingProgress,
+  Recording,
+  RecordingMode
+} from '@shared/types'
 import { api } from './api'
+
+/** Grabación en curso (estado global: sobrevive a la navegación). */
+export interface ActiveRecording {
+  id: string
+  modo: RecordingMode
+  startedAt: number
+}
 
 export type View =
   | { name: 'home' }
@@ -18,8 +31,15 @@ interface AppState {
   progressByRecording: Record<string, ProcessingProgress>
   projectFilter: string | null
   projects: ProjectWithCount[]
+  /** Grabación en curso (null si no se está grabando). Global, persiste al navegar. */
+  activeRecording: ActiveRecording | null
+  /** Si el control flotante está expandido (false = minimizado a píldora). */
+  dockExpanded: boolean
   // acciones
   navigate: (view: View) => void
+  startRecording: (modo: RecordingMode) => Promise<void>
+  stopActiveRecording: () => Promise<void>
+  setDockExpanded: (expanded: boolean) => void
   setProjectFilter: (projectId: string | null) => void
   refreshRecordings: (filtro?: string) => Promise<void>
   loadSettings: () => Promise<void>
@@ -39,8 +59,27 @@ export const useStore = create<AppState>((set, get) => ({
   progressByRecording: {},
   projectFilter: null,
   projects: [],
+  activeRecording: null,
+  dockExpanded: true,
 
   navigate: (view) => set({ view }),
+
+  startRecording: async (modo) => {
+    const { id } = await api.startRecording(undefined, modo)
+    set({ activeRecording: { id, modo, startedAt: Date.now() }, dockExpanded: true })
+    get().navigate({ name: 'recording', recordingId: id })
+  },
+
+  stopActiveRecording: async () => {
+    const ar = get().activeRecording
+    if (!ar) return
+    set({ activeRecording: null })
+    await api.stopRecording(ar.id)
+    get().navigate({ name: 'detail', recordingId: ar.id })
+    void get().refreshRecordings()
+  },
+
+  setDockExpanded: (expanded) => set({ dockExpanded: expanded }),
 
   setProjectFilter: (projectId) => {
     set({ projectFilter: projectId })

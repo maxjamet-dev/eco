@@ -5,6 +5,8 @@ import { HomeView } from './views/HomeView'
 import { RecordingView } from './views/RecordingView'
 import { DetailView } from './views/DetailView'
 import { SettingsView } from './views/SettingsView'
+import { RecordingDock } from './components/RecordingDock'
+import type { RecordingMode } from '@shared/types'
 import { Onboarding } from './Onboarding'
 
 const ALL = '__all__'
@@ -23,11 +25,15 @@ export function App(): JSX.Element {
   const renameProject = useStore((s) => s.renameProject)
   const deleteProject = useStore((s) => s.deleteProject)
   const applyProgress = useStore((s) => s.applyProgress)
+  const startRecording = useStore((s) => s.startRecording)
+  const activeRecording = useStore((s) => s.activeRecording)
 
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [menuFor, setMenuFor] = useState<string | null>(null)
   const [creando, setCreando] = useState(false)
   const [nuevoNombre, setNuevoNombre] = useState('')
+  const [grabMenu, setGrabMenu] = useState(false)
+  const [editProj, setEditProj] = useState<{ id: string; nombre: string } | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
 
   useEffect(() => {
@@ -47,18 +53,30 @@ export function App(): JSX.Element {
     }
   }, [loadSettings, loadProjects, applyProgress, navigate])
 
-  // Cierra el menú contextual al hacer clic fuera.
+  // Cierra los menús contextuales al hacer clic fuera.
   useEffect(() => {
-    if (menuFor === null) return
-    const close = (): void => setMenuFor(null)
+    if (menuFor === null && !grabMenu) return
+    const close = (): void => {
+      setMenuFor(null)
+      setGrabMenu(false)
+    }
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
-  }, [menuFor])
+  }, [menuFor, grabMenu])
 
-  async function grabar(): Promise<void> {
-    const modo = settings?.modoPorDefecto ?? 'online'
-    const { id } = await api.startRecording(undefined, modo)
-    navigate({ name: 'recording', recordingId: id })
+  async function grabar(modo?: RecordingMode): Promise<void> {
+    setGrabMenu(false)
+    if (activeRecording) {
+      // Ya hay una grabación en curso: vuelve a ella en vez de iniciar otra.
+      navigate({ name: 'recording', recordingId: activeRecording.id })
+      return
+    }
+    await startRecording(modo ?? settings?.modoPorDefecto ?? 'online')
+  }
+
+  function renombrarConfirm(): void {
+    if (editProj && editProj.nombre.trim()) void renameProject(editProj.id, editProj.nombre.trim())
+    setEditProj(null)
   }
 
   function irAProyecto(projectId: string | null): void {
@@ -88,8 +106,7 @@ export function App(): JSX.Element {
 
   function renombrar(id: string, actual: string): void {
     setMenuFor(null)
-    const nombre = window.prompt('Nuevo nombre del proyecto', actual)
-    if (nombre && nombre.trim()) void renameProject(id, nombre.trim())
+    setEditProj({ id, nombre: actual })
   }
 
   function eliminar(id: string, nombre: string): void {
@@ -109,10 +126,36 @@ export function App(): JSX.Element {
           <span className="side-wm">eco</span>
         </div>
 
-        <button className="grabar" onClick={grabar}>
-          <span className="rd" />
-          Grabar
-        </button>
+        <div className="grabar-wrap">
+          <button className="grabar" onClick={() => grabar()}>
+            <span className="rd" />
+            {activeRecording ? 'Grabando…' : 'Grabar'}
+          </button>
+          {!activeRecording && (
+            <button
+              className="grabar-caret"
+              title="Elegir modo de grabación"
+              onClick={(e) => {
+                e.stopPropagation()
+                setGrabMenu((m) => !m)
+              }}
+            >
+              ▾
+            </button>
+          )}
+          {grabMenu && !activeRecording && (
+            <div className="grabar-menu" onMouseDown={(e) => e.stopPropagation()}>
+              <button onClick={() => grabar('online')}>
+                <b>En línea</b>
+                <span>Reunión por Zoom/Meet/Teams (yo + los demás)</span>
+              </button>
+              <button onClick={() => grabar('presencial')}>
+                <b>Presencial</b>
+                <span>Solo micrófono, en la misma sala</span>
+              </button>
+            </div>
+          )}
+        </div>
 
         <nav className="side-nav">
           <button
@@ -171,7 +214,22 @@ export function App(): JSX.Element {
                 onDrop={(e) => onDropEnProyecto(p.id, e)}
               >
                 <span className="pdot" />
-                {p.nombre}
+                {editProj?.id === p.id ? (
+                  <input
+                    className="search-input proj-rename"
+                    autoFocus
+                    value={editProj.nombre}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => setEditProj({ id: p.id, nombre: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') renombrarConfirm()
+                      if (e.key === 'Escape') setEditProj(null)
+                    }}
+                    onBlur={renombrarConfirm}
+                  />
+                ) : (
+                  p.nombre
+                )}
                 <span className="proj-right">
                   <span className="ct">{p.numReuniones}</span>
                   <button
@@ -234,6 +292,8 @@ export function App(): JSX.Element {
         {view.name === 'detail' && <DetailView recordingId={view.recordingId} />}
         {view.name === 'settings' && <SettingsView />}
       </main>
+
+      <RecordingDock />
 
       {showOnboarding && <Onboarding onDone={() => setShowOnboarding(false)} />}
     </div>

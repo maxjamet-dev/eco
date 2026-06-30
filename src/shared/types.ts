@@ -192,5 +192,13 @@ export interface SystemReadiness {
   listoParaUsar: boolean
 }
 
+/** Sugerencia de nombre de hablante extraída de la transcripción (#5). */
+export interface SpeakerSuggestion {
+  speakerId: number
+  etiqueta: string
+  actual: string // etiqueta visible actual (p.ej. "Participante 1")
+  sugerido: string // nombre propuesto por el modelo
+}
+
 /** Resultado genérico de operaciones que pueden fallar. */
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string }

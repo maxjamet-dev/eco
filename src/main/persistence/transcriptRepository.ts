@@ -1,5 +1,6 @@
 import type { SqlDb } from './driver'
 import type { TranscriptSegment } from '@shared/types'
+import { speakerDisplayName } from '@shared/speakers'
 
 interface SegmentJoinRow {
   inicio_ms: number
@@ -9,15 +10,9 @@ interface SegmentJoinRow {
   speaker_etiqueta: string | null
 }
 
-/** Etiqueta legible para un hablante: nombre real, o la etiqueta cruda. */
+/** Etiqueta legible para un hablante (fuente única en @shared/speakers). */
 function speakerLabel(nombre: string | null, etiqueta: string | null): string {
-  if (nombre && nombre.trim()) return nombre
-  if (etiqueta === 'MIC') return 'Yo'
-  if (etiqueta && etiqueta.startsWith('SPEAKER_')) {
-    const n = parseInt(etiqueta.slice('SPEAKER_'.length), 10)
-    if (!Number.isNaN(n)) return `Participante ${n + 1}`
-  }
-  return etiqueta ?? 'Desconocido'
+  return speakerDisplayName(etiqueta, nombre)
 }
 
 export class TranscriptRepository {

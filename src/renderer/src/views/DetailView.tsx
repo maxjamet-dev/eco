@@ -4,7 +4,14 @@ import { api } from '../api'
 import { StatusBadge } from '../components/StatusBadge'
 import { formatTimestamp } from '../lib/format'
 import { buildMarkdown, buildTranscriptText } from '../lib/exportMarkdown'
-import type { Project, RecordingDetail, Speaker, TranscriptSegment } from '@shared/types'
+import { speakerDisplayName } from '@shared/speakers'
+import type {
+  Project,
+  RecordingDetail,
+  Speaker,
+  SpeakerSuggestion,
+  TranscriptSegment
+} from '@shared/types'
 
 export function DetailView({ recordingId }: { recordingId: string }): JSX.Element {
   const navigate = useStore((s) => s.navigate)
@@ -19,6 +26,9 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
   const [editingSpeaker, setEditingSpeaker] = useState<number | null>(null)
   const [spkName, setSpkName] = useState('')
   const [regenerating, setRegenerating] = useState(false)
+  const [suggesting, setSuggesting] = useState(false)
+  const [suggestions, setSuggestions] = useState<SpeakerSuggestion[]>([])
+  const [suggestMsg, setSuggestMsg] = useState('')
   const audioRef = useRef<HTMLAudioElement>(null)
   const [currentTrack, setCurrentTrack] = useState<'mic' | 'system'>('system')
 
@@ -115,6 +125,26 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
       setRegenerating(false)
       void load()
     }
+  }
+
+  async function sugerirNombres(): Promise<void> {
+    setSuggesting(true)
+    setSuggestMsg('')
+    try {
+      const s = await api.suggestSpeakerNames(recordingId)
+      setSuggestions(s)
+      if (s.length === 0) setSuggestMsg('La conversación no reveló nombres claros.')
+    } catch {
+      setSuggestMsg('No se pudo sugerir nombres (¿Ollama disponible?).')
+    } finally {
+      setSuggesting(false)
+    }
+  }
+
+  async function aplicarSugerencia(s: SpeakerSuggestion): Promise<void> {
+    await api.renameSpeaker(recordingId, s.speakerId, s.sugerido)
+    setSuggestions((prev) => prev.filter((x) => x.speakerId !== s.speakerId))
+    void load()
   }
 
   async function valorar(fb: 'up' | 'down'): Promise<void> {
@@ -230,6 +260,41 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
           {speakers.length > 0 && (
             <div className="card">
               <h3 className="card-title">Participantes</h3>
+
+              {segments.length > 0 && (
+                <div className="suggest-box">
+                  <button
+                    className="btn btn-sm"
+                    onClick={sugerirNombres}
+                    disabled={suggesting}
+                    title="Detecta nombres si los participantes se presentan en la reunión"
+                  >
+                    {suggesting ? 'Analizando…' : '✨ Sugerir nombres'}
+                  </button>
+                  {suggestMsg && <span className="muted suggest-msg">{suggestMsg}</span>}
+                  {suggestions.map((s) => (
+                    <div key={s.speakerId} className="suggest-row">
+                      <span>
+                        {s.actual} → <b>{s.sugerido}</b>
+                      </span>
+                      <span className="suggest-acts">
+                        <button className="btn btn-xs btn-primary" onClick={() => aplicarSugerencia(s)}>
+                          Aplicar
+                        </button>
+                        <button
+                          className="btn btn-xs"
+                          onClick={() =>
+                            setSuggestions((prev) => prev.filter((x) => x.speakerId !== s.speakerId))
+                          }
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <ul className="speaker-list">
                 {speakers.map((sp) => (
                   <li key={sp.id} className="speaker-item">
@@ -238,7 +303,7 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
                         className="search-input"
                         autoFocus
                         value={spkName}
-                        placeholder={sp.etiqueta === 'MIC' ? 'Yo' : sp.etiqueta}
+                        placeholder={speakerDisplayName(sp.etiqueta)}
                         onChange={(e) => setSpkName(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') void confirmRename(sp)
@@ -247,7 +312,7 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
                         onBlur={() => void confirmRename(sp)}
                       />
                     ) : (
-                      <span>{sp.nombre ?? (sp.etiqueta === 'MIC' ? 'Yo' : sp.etiqueta)}</span>
+                      <span>{speakerDisplayName(sp.etiqueta, sp.nombre)}</span>
                     )}
                     <button className="btn btn-xs" onClick={() => startRename(sp)}>
                       Renombrar

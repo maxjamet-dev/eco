@@ -22,7 +22,11 @@ import { importAudio } from '../import/audioImport'
 const log = createLogger('ipc')
 
 // Una grabación activa a la vez (MVP).
-let activeCapture: { controller: NativeCaptureController; recordingId: string } | null = null
+let activeCapture: {
+  controller: NativeCaptureController
+  recordingId: string
+  modo: RecordingMode
+} | null = null
 const detector = new HardwareDetector()
 
 /** ¿Hay una grabación en curso? (lo consulta el detector de reuniones.) */
@@ -32,6 +36,10 @@ export function isRecordingActive(): boolean {
 /** Id de la grabación en curso, o null. */
 export function getActiveRecordingId(): string | null {
   return activeCapture?.recordingId ?? null
+}
+/** Modo de la grabación en curso, o null. El auto-stop solo aplica a 'online'. */
+export function getActiveRecordingMode(): RecordingMode | null {
+  return activeCapture?.modo ?? null
 }
 
 function broadcastLevels(levels: AudioLevels): void {
@@ -62,7 +70,7 @@ export function registerIpcHandlers(): void {
         micDeviceId: settings.micDeviceId,
         sysDeviceId: settings.sysDeviceId
       })
-      activeCapture = { controller, recordingId: rec.id }
+      activeCapture = { controller, recordingId: rec.id, modo: payload.modo }
       setTrayRecording(true)
     } catch (err) {
       log.error('No se pudo iniciar la captura', String(err))
@@ -203,6 +211,11 @@ export function registerIpcHandlers(): void {
       return { ok: true }
     }
   )
+
+  ipcMain.handle('speakers:suggestNames', async (_e, payload: { recordingId: string }) => {
+    const { suggestSpeakerNames } = await import('../speakerNames')
+    return suggestSpeakerNames(payload.recordingId)
+  })
 
   ipcMain.handle('settings:get', async (): Promise<AppSettings> => {
     const s = repos.settings.getAll()

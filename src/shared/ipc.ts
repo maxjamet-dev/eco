@@ -17,6 +17,7 @@ import type {
   Recording,
   RecordingDetail,
   RecordingMode,
+  SpeakerSuggestion,
   SystemReadiness,
   TranscriptSegment
 } from './types'
@@ -96,6 +97,10 @@ export interface IpcRequestMap {
   'speaker:rename': {
     request: { recordingId: string; speakerId: number; nombre: string }
     response: { ok: boolean }
+  }
+  'speakers:suggestNames': {
+    request: { recordingId: string }
+    response: SpeakerSuggestion[]
   }
   'settings:get': {
     request: Record<string, never>
@@ -235,6 +240,7 @@ export const IPC_REQUEST_CHANNELS: IpcRequestChannel[] = [
   'transcript:search',
   'transcript:searchGlobal',
   'speaker:rename',
+  'speakers:suggestNames',
   'settings:get',
   'settings:set',
   'settings:setHfToken',

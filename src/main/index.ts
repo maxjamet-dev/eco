@@ -8,7 +8,7 @@ import { logsDir, recordingsDir } from './paths'
 import { destroyTray, setAutoLaunch, setupTray } from './tray'
 import { startMeetingDetector } from './meetingDetector'
 import { hideWidget, showWidget } from './widget'
-import { getActiveRecordingId, isRecordingActive } from './ipc/handlers'
+import { getActiveRecordingId, getActiveRecordingMode, isRecordingActive } from './ipc/handlers'
 import { initAutoUpdate } from './updater'
 import { getRepositories } from './persistence/db'
 
@@ -190,8 +190,13 @@ async function bootstrap(): Promise<void> {
     },
     onEnd: () => {
       hideWidget()
+      // El auto-stop solo aplica a reuniones en línea (detectadas por una app
+      // usando el micrófono). En presencial el mic siempre está "libre" desde
+      // la perspectiva del detector, así que NO debemos cortar la grabación.
       const id = getActiveRecordingId()
-      if (id) sendToMain('recording:autoStop', { recordingId: id })
+      if (id && getActiveRecordingMode() !== 'presencial') {
+        sendToMain('recording:autoStop', { recordingId: id })
+      }
     }
   })
 
