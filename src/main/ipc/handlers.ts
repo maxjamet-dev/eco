@@ -11,6 +11,7 @@ import { NativeCaptureController } from '../capture/captureController'
 import { HardwareDetector } from '../hardware/detect'
 import { hasSecret, setSecret, HF_TOKEN_KEY } from '../secrets'
 import { setAutoLaunch, setTrayRecording } from '../tray'
+import { hideRecordingWidget, showRecordingWidget } from '../widget'
 import { getEnvStatus, prepareEnv } from '../envManager'
 import { getOllamaStatus, pullOllamaModel } from '../ollamaManager'
 import { validateHfToken } from '../hf'
@@ -48,6 +49,12 @@ function broadcastLevels(levels: AudioLevels): void {
   }
 }
 
+function broadcast(channel: string, payload: unknown): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send(channel, payload)
+  }
+}
+
 /** Registra todos los handlers IPC tipados (SDD §10.1). */
 export function registerIpcHandlers(): void {
   const repos = getRepositories()
@@ -72,6 +79,7 @@ export function registerIpcHandlers(): void {
       })
       activeCapture = { controller, recordingId: rec.id, modo: payload.modo }
       setTrayRecording(true)
+      showRecordingWidget(rec.id, Date.now())
     } catch (err) {
       log.error('No se pudo iniciar la captura', String(err))
       repos.recordings.setStatus(rec.id, 'failed')
@@ -87,10 +95,12 @@ export function registerIpcHandlers(): void {
     const result = await activeCapture.controller.stop()
     activeCapture = null
     setTrayRecording(false)
+    hideRecordingWidget()
     repos.recordings.setAudioPaths(payload.id, result.micPath, result.sysPath, result.offsetSysMs)
     repos.recordings.setDuration(payload.id, result.durationMs)
     repos.recordings.setStatus(payload.id, 'captured')
     getOrchestrator().enqueue(payload.id)
+    broadcast('recording:ended', { recordingId: payload.id })
     return { ok: true }
   })
 

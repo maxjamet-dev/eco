@@ -5,7 +5,6 @@ import { HomeView } from './views/HomeView'
 import { RecordingView } from './views/RecordingView'
 import { DetailView } from './views/DetailView'
 import { SettingsView } from './views/SettingsView'
-import { RecordingDock } from './components/RecordingDock'
 import type { RecordingMode } from '@shared/types'
 import { Onboarding } from './Onboarding'
 
@@ -27,6 +26,7 @@ export function App(): JSX.Element {
   const applyProgress = useStore((s) => s.applyProgress)
   const startRecording = useStore((s) => s.startRecording)
   const activeRecording = useStore((s) => s.activeRecording)
+  const handleRecordingEnded = useStore((s) => s.handleRecordingEnded)
 
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [menuFor, setMenuFor] = useState<string | null>(null)
@@ -47,11 +47,14 @@ export function App(): JSX.Element {
     const offProgress = onEvent('processing:progress', applyProgress)
     // Navegación pedida desde main (p.ej. el widget al iniciar una grabación).
     const offNav = onEvent('ui:navigate', (target) => navigate(target))
+    // Grabación detenida (desde el widget de escritorio o donde sea).
+    const offEnded = onEvent('recording:ended', (d) => handleRecordingEnded(d.recordingId))
     return () => {
       offProgress()
       offNav()
+      offEnded()
     }
-  }, [loadSettings, loadProjects, applyProgress, navigate])
+  }, [loadSettings, loadProjects, applyProgress, navigate, handleRecordingEnded])
 
   // Cierra los menús contextuales al hacer clic fuera.
   useEffect(() => {
@@ -292,8 +295,6 @@ export function App(): JSX.Element {
         {view.name === 'detail' && <DetailView recordingId={view.recordingId} />}
         {view.name === 'settings' && <SettingsView />}
       </main>
-
-      <RecordingDock />
 
       {showOnboarding && <Onboarding onDone={() => setShowOnboarding(false)} />}
     </div>

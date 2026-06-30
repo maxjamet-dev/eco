@@ -1,9 +1,69 @@
-import { useState } from 'react'
-import { api } from './api'
+import { useEffect, useState } from 'react'
+import { api, onEvent } from './api'
+import { formatDuration } from './lib/format'
 
-/** Widget flotante que aparece al detectar una reunión: ofrece grabar. */
+const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '')
+
+/** Punto de entrada del widget: detección de reunión o control de grabación. */
 export function Widget(): JSX.Element {
-  const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '')
+  return params.get('mode') === 'rec' ? <RecordingWidget /> : <DetectWidget />
+}
+
+/** Control de grabación flotante en el escritorio (always-on-top). */
+function RecordingWidget(): JSX.Element {
+  const id = params.get('id') ?? ''
+  const startedAt = Number(params.get('t') ?? Date.now())
+  const [elapsed, setElapsed] = useState(0)
+  const [level, setLevel] = useState(0)
+  const [stopping, setStopping] = useState(false)
+
+  useEffect(() => {
+    const tick = (): void => setElapsed(Date.now() - startedAt)
+    tick()
+    const timer = setInterval(tick, 250)
+    const off = onEvent('audio:levels', (d) => {
+      if (d.recordingId === id) setLevel(Math.max(d.micLevel, d.sysLevel))
+    })
+    return () => {
+      clearInterval(timer)
+      off()
+    }
+  }, [id, startedAt])
+
+  async function detener(): Promise<void> {
+    setStopping(true)
+    try {
+      await api.stopRecording(id)
+    } catch {
+      setStopping(false)
+    }
+  }
+
+  return (
+    <div className="rwidget">
+      <div className="rwidget-top">
+        <span className="rwidget-dot" />
+        <span className="rwidget-title">Grabando</span>
+        <span className="rwidget-time">{formatDuration(elapsed)}</span>
+      </div>
+      <div className="rwidget-bar">
+        <div className="rwidget-bar-fill" style={{ width: `${Math.min(100, Math.round(level * 100))}%` }} />
+      </div>
+      <div className="rwidget-actions">
+        <button className="widget-btn ignore" onClick={() => void api.openRecording(id)}>
+          Abrir
+        </button>
+        <button className="widget-btn rec stop" onClick={detener} disabled={stopping}>
+          <span className="sq" />
+          {stopping ? 'Deteniendo…' : 'Detener'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** Widget que aparece al detectar una reunión: ofrece grabar. */
+function DetectWidget(): JSX.Element {
   const appName = params.get('app') ?? 'una reunión'
   const [busy, setBusy] = useState(false)
 

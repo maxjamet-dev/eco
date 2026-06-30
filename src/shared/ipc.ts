@@ -205,6 +205,8 @@ export interface IpcEventMap {
   'ui:navigate': NavTarget
   /** La reunión detectada terminó mientras se grababa → ofrecer detener. */
   'recording:autoStop': { recordingId: string }
+  /** La grabación se detuvo (desde el widget de escritorio o donde sea). */
+  'recording:ended': { recordingId: string }
   /** Línea de progreso de la preparación del entorno de IA. */
   'env:progress': { line: string }
   /** Línea de progreso de la descarga del modelo de Ollama. */
@@ -267,6 +269,7 @@ export const IPC_EVENT_CHANNELS: IpcEventChannel[] = [
   'audio:levels',
   'ui:navigate',
   'recording:autoStop',
+  'recording:ended',
   'env:progress',
   'ollama:progress',
   'update:status'

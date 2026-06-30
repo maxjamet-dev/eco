@@ -26,9 +26,11 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
   const [editingSpeaker, setEditingSpeaker] = useState<number | null>(null)
   const [spkName, setSpkName] = useState('')
   const [regenerating, setRegenerating] = useState(false)
-  const [suggesting, setSuggesting] = useState(false)
-  const [suggestions, setSuggestions] = useState<SpeakerSuggestion[]>([])
-  const [suggestMsg, setSuggestMsg] = useState('')
+  // Las sugerencias viven en el store (persisten al navegar y siguen en 2º plano).
+  const suggesting = useStore((s) => s.suggestingNames[recordingId] ?? false)
+  const suggestions = useStore((s) => s.speakerSuggestions[recordingId])
+  const pedirSugerencias = useStore((s) => s.suggestNames)
+  const dismissSuggestion = useStore((s) => s.dismissSuggestion)
   const audioRef = useRef<HTMLAudioElement>(null)
   const [currentTrack, setCurrentTrack] = useState<'mic' | 'system'>('system')
 
@@ -127,23 +129,9 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
     }
   }
 
-  async function sugerirNombres(): Promise<void> {
-    setSuggesting(true)
-    setSuggestMsg('')
-    try {
-      const s = await api.suggestSpeakerNames(recordingId)
-      setSuggestions(s)
-      if (s.length === 0) setSuggestMsg('La conversación no reveló nombres claros.')
-    } catch {
-      setSuggestMsg('No se pudo sugerir nombres (¿Ollama disponible?).')
-    } finally {
-      setSuggesting(false)
-    }
-  }
-
   async function aplicarSugerencia(s: SpeakerSuggestion): Promise<void> {
     await api.renameSpeaker(recordingId, s.speakerId, s.sugerido)
-    setSuggestions((prev) => prev.filter((x) => x.speakerId !== s.speakerId))
+    dismissSuggestion(recordingId, s.speakerId)
     void load()
   }
 
@@ -265,14 +253,16 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
                 <div className="suggest-box">
                   <button
                     className="btn btn-sm"
-                    onClick={sugerirNombres}
+                    onClick={() => void pedirSugerencias(recordingId)}
                     disabled={suggesting}
                     title="Detecta nombres si los participantes se presentan en la reunión"
                   >
                     {suggesting ? 'Analizando…' : '✨ Sugerir nombres'}
                   </button>
-                  {suggestMsg && <span className="muted suggest-msg">{suggestMsg}</span>}
-                  {suggestions.map((s) => (
+                  {!suggesting && suggestions && suggestions.length === 0 && (
+                    <span className="muted suggest-msg">La conversación no reveló nombres claros.</span>
+                  )}
+                  {(suggestions ?? []).map((s) => (
                     <div key={s.speakerId} className="suggest-row">
                       <span>
                         {s.actual} → <b>{s.sugerido}</b>
@@ -283,9 +273,7 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
                         </button>
                         <button
                           className="btn btn-xs"
-                          onClick={() =>
-                            setSuggestions((prev) => prev.filter((x) => x.speakerId !== s.speakerId))
-                          }
+                          onClick={() => dismissSuggestion(recordingId, s.speakerId)}
                         >
                           ✕
                         </button>

@@ -4,7 +4,8 @@ import type {
   Project,
   ProcessingProgress,
   Recording,
-  RecordingMode
+  RecordingMode,
+  SpeakerSuggestion
 } from '@shared/types'
 import { api } from './api'
 
@@ -35,10 +36,18 @@ interface AppState {
   activeRecording: ActiveRecording | null
   /** Si el control flotante está expandido (false = minimizado a píldora). */
   dockExpanded: boolean
+  /** Sugerencias de nombres por grabación (persisten al navegar). */
+  speakerSuggestions: Record<string, SpeakerSuggestion[]>
+  /** Grabaciones cuyo análisis de nombres está en curso. */
+  suggestingNames: Record<string, boolean>
   // acciones
+  suggestNames: (recordingId: string) => Promise<void>
+  dismissSuggestion: (recordingId: string, speakerId: number) => void
   navigate: (view: View) => void
   startRecording: (modo: RecordingMode) => Promise<void>
   stopActiveRecording: () => Promise<void>
+  /** Reacciona al evento main 'recording:ended' (detenido desde cualquier lado). */
+  handleRecordingEnded: (recordingId: string) => void
   setDockExpanded: (expanded: boolean) => void
   setProjectFilter: (projectId: string | null) => void
   refreshRecordings: (filtro?: string) => Promise<void>
@@ -61,8 +70,36 @@ export const useStore = create<AppState>((set, get) => ({
   projects: [],
   activeRecording: null,
   dockExpanded: true,
+  speakerSuggestions: {},
+  suggestingNames: {},
 
   navigate: (view) => set({ view }),
+
+  suggestNames: async (recordingId) => {
+    if (get().suggestingNames[recordingId]) return
+    set((s) => ({ suggestingNames: { ...s.suggestingNames, [recordingId]: true } }))
+    try {
+      const sugerencias = await api.suggestSpeakerNames(recordingId)
+      set((s) => ({
+        speakerSuggestions: { ...s.speakerSuggestions, [recordingId]: sugerencias }
+      }))
+    } catch {
+      set((s) => ({ speakerSuggestions: { ...s.speakerSuggestions, [recordingId]: [] } }))
+    } finally {
+      set((s) => ({ suggestingNames: { ...s.suggestingNames, [recordingId]: false } }))
+    }
+  },
+
+  dismissSuggestion: (recordingId, speakerId) => {
+    set((s) => ({
+      speakerSuggestions: {
+        ...s.speakerSuggestions,
+        [recordingId]: (s.speakerSuggestions[recordingId] ?? []).filter(
+          (x) => x.speakerId !== speakerId
+        )
+      }
+    }))
+  },
 
   startRecording: async (modo) => {
     const { id } = await api.startRecording(undefined, modo)
@@ -73,9 +110,15 @@ export const useStore = create<AppState>((set, get) => ({
   stopActiveRecording: async () => {
     const ar = get().activeRecording
     if (!ar) return
-    set({ activeRecording: null })
+    // main detiene la captura y emite 'recording:ended' → handleRecordingEnded
+    // limpia el estado y navega. Así cualquier origen (app o widget) converge.
     await api.stopRecording(ar.id)
-    get().navigate({ name: 'detail', recordingId: ar.id })
+  },
+
+  handleRecordingEnded: (recordingId) => {
+    if (get().activeRecording && get().activeRecording?.id !== recordingId) return
+    set({ activeRecording: null })
+    get().navigate({ name: 'detail', recordingId })
     void get().refreshRecordings()
   },
 

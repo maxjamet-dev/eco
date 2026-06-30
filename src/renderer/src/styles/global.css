@@ -1668,6 +1668,9 @@ select:focus-visible {
 }
 .grabar-wrap .grabar {
   flex: 1;
+}
+/* Aplana el borde derecho SOLO cuando el botón ▾ está al lado. */
+.grabar-wrap .grabar:not(:last-child) {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
@@ -1730,9 +1733,9 @@ select:focus-visible {
 /* ===== Control flotante de grabación (abajo-izquierda) ===== */
 .dock {
   position: fixed;
-  left: 16px;
-  bottom: 16px;
-  z-index: 50;
+  right: 18px;
+  bottom: 18px;
+  z-index: 200;
   font-family: var(--sans);
 }
 .dock-rec-dot {
@@ -1829,6 +1832,87 @@ select:focus-visible {
 }
 .dock-stop:hover {
   border-color: var(--live);
+}
+
+/* ===== Widget de control de grabación (ventana de escritorio) ===== */
+.rwidget {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 18px 48px -16px rgba(0, 0, 0, 0.7);
+  -webkit-app-region: drag;
+}
+.rwidget button {
+  -webkit-app-region: no-drag;
+}
+.rwidget-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rwidget-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--live);
+  animation: dockpulse 1.4s infinite;
+}
+@keyframes dockpulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.rwidget-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.rwidget-time {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--slate);
+}
+.rwidget-bar {
+  height: 5px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.rwidget-bar-fill {
+  height: 100%;
+  background: var(--live);
+  transition: width 0.1s linear;
+}
+.rwidget-actions {
+  display: flex;
+  gap: 8px;
+}
+.rwidget-actions .widget-btn {
+  flex: 1;
+}
+.widget-btn.stop {
+  background: var(--live);
+  border-color: var(--live);
+  color: #fff;
+}
+.widget-btn.stop .sq {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: #fff;
+  border-radius: 1px;
+  margin-right: 6px;
+  vertical-align: middle;
 }
 
 /* ===== Sugerencia de nombres de participantes ===== */
