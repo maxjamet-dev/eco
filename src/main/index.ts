@@ -1,6 +1,7 @@
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from 'electron'
 import { join, normalize } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { createReadStream, existsSync, statSync } from 'node:fs'
+import { Readable } from 'node:stream'
 import type { AppSettings } from '@shared/types'
 import type { IpcEventMap } from '@shared/ipc'
 import { configureLogger, createLogger } from './logger'
@@ -69,10 +70,46 @@ function registerMediaProtocol(): void {
       }
       const base = recordingsDir()
       const target = normalize(join(base, recordingId, fileName))
-      if (!target.startsWith(normalize(base))) {
+      if (!target.startsWith(normalize(base)) || !existsSync(target)) {
         return new Response('Forbidden', { status: 403 })
       }
-      return net.fetch(pathToFileURL(target).toString())
+
+      // Soporte de byte-ranges → el <audio> puede saltar a cualquier minuto.
+      // Sin esto, el reproductor solo puede ir a lo ya buffereado (el inicio).
+      const size = statSync(target).size
+      const rangeHeader = request.headers.get('Range')
+      const toWeb = (s: NodeJS.ReadableStream): ReadableStream =>
+        Readable.toWeb(s as Readable) as unknown as ReadableStream
+
+      if (rangeHeader) {
+        const m = /bytes=(\d+)-(\d*)/.exec(rangeHeader)
+        const start = m ? parseInt(m[1], 10) : 0
+        const end = m && m[2] ? Math.min(parseInt(m[2], 10), size - 1) : size - 1
+        if (start >= size || start > end) {
+          return new Response('Rango inválido', {
+            status: 416,
+            headers: { 'Content-Range': `bytes */${size}` }
+          })
+        }
+        return new Response(toWeb(createReadStream(target, { start, end })), {
+          status: 206,
+          headers: {
+            'Content-Type': 'audio/wav',
+            'Content-Range': `bytes ${start}-${end}/${size}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': String(end - start + 1)
+          }
+        })
+      }
+
+      return new Response(toWeb(createReadStream(target)), {
+        status: 200,
+        headers: {
+          'Content-Type': 'audio/wav',
+          'Accept-Ranges': 'bytes',
+          'Content-Length': String(size)
+        }
+      })
     } catch (e) {
       log.error('protocolo recmedia', String(e))
       return new Response('Error', { status: 500 })

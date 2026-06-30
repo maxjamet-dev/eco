@@ -51,6 +51,20 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
     void api.listProjects().then(setProjects)
   }, [])
 
+  // Precarga un track en el reproductor para que los controles estén listos.
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio || audio.src) return
+    const rec = detail?.recording
+    if (rec?.rutaAudioSys) {
+      audio.src = `recmedia://${recordingId}/system.wav`
+      setCurrentTrack('system')
+    } else if (rec?.rutaAudioMic) {
+      audio.src = `recmedia://${recordingId}/mic.wav`
+      setCurrentTrack('mic')
+    }
+  }, [detail, recordingId])
+
   async function copy(texto: string, etiqueta: string): Promise<void> {
     await navigator.clipboard.writeText(texto)
     setCopied(etiqueta)
@@ -213,8 +227,6 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
           </button>
         </div>
       )}
-
-      <audio ref={audioRef} controls className="audio-player" />
 
       <div className="detail-grid">
         <section className="transcript-pane">
@@ -379,6 +391,15 @@ export function DetailView({ recordingId }: { recordingId: string }): JSX.Elemen
           )}
         </aside>
       </div>
+
+      {(recording.rutaAudioMic || recording.rutaAudioSys) && (
+        <div className="player-dock">
+          <span className="player-track">
+            {currentTrack === 'mic' ? '🎙️ Yo' : '👥 Participantes'}
+          </span>
+          <audio ref={audioRef} controls className="player-audio" />
+        </div>
+      )}
     </div>
   )
 }

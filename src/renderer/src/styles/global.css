@@ -1915,6 +1915,35 @@ select:focus-visible {
   vertical-align: middle;
 }
 
+/* ===== Reproductor fijo inferior (vista detalle) ===== */
+.detail-view {
+  padding-bottom: 76px; /* espacio para el reproductor fijo */
+}
+.player-dock {
+  position: fixed;
+  left: 236px; /* ancho del sidebar */
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  background: rgba(17, 20, 27, 0.92);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--line);
+}
+.player-track {
+  font-size: 12px;
+  color: var(--slate);
+  white-space: nowrap;
+  flex: none;
+}
+.player-audio {
+  flex: 1;
+  height: 36px;
+}
+
 /* ===== Sugerencia de nombres de participantes ===== */
 .suggest-box {
   margin-bottom: 12px;
